@@ -17,3 +17,4 @@
 
 pub mod atomic_cell;
 pub mod mempool;
+pub mod coding;
