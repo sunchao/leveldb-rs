@@ -15,7 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-pub mod atomic_cell;
+pub mod atomic;
 pub mod mempool;
 pub mod coding;
 pub mod hash;

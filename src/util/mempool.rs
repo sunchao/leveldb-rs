@@ -21,8 +21,6 @@ use std::cell::Cell;
 use std::slice::from_raw_parts_mut;
 use arena::TypedArena;
 
-use super::atomic_cell::AtomicCell;
-
 const K_BLOCK_SIZE: usize = 4096;
 
 /// Similar to "Arena" in leveldb C++
@@ -33,7 +31,7 @@ pub struct MemPool {
   alloc_ptr: Cell<*mut u8>,
   alloc_bytes_remaining: Cell<usize>,
   arena: TypedArena<Vec<u8>>,
-  memory_usage: AtomicCell<i64> // TODO: is this necessary?
+  memory_usage: Cell<i64>
 }
 
 impl MemPool {
@@ -42,7 +40,7 @@ impl MemPool {
       alloc_ptr: Cell::new(null_mut()),
       alloc_bytes_remaining: Cell::new(0),
       arena: TypedArena::new(),
-      memory_usage: AtomicCell::new(0)
+      memory_usage: Cell::new(0)
     }
   }
 
@@ -55,14 +53,16 @@ impl MemPool {
       let result = self.alloc_ptr.get();
       unsafe {
         self.alloc_ptr.set(self.alloc_ptr.get().offset(bytes as isize));
-        self.alloc_bytes_remaining.set(self.alloc_bytes_remaining.get() - bytes);
+        self.alloc_bytes_remaining.set(
+          self.alloc_bytes_remaining.get() - bytes);
         return from_raw_parts_mut(result, bytes)
       }
     }
     self.alloc_fallback(bytes)
   }
 
-  /// Allocate a byte slice with length `bytes` that is aligned to pointer address.
+  /// Allocate a byte slice with length `bytes` that is aligned to pointer
+  /// address.
   /// Return a unique reference to the slice allocated.
   pub fn alloc_aligned(&self, bytes: usize) -> &mut [u8] {
     let ptr_size = size_of::<usize>(); // TODO: double-check this
@@ -77,7 +77,8 @@ impl MemPool {
         unsafe {
           let r = self.alloc_ptr.get().offset(slop as isize);
           self.alloc_ptr.set(self.alloc_ptr.get().offset(needed as isize));
-          self.alloc_bytes_remaining.set(self.alloc_bytes_remaining.get() - needed);
+          self.alloc_bytes_remaining.set(
+            self.alloc_bytes_remaining.get() - needed);
           r
         }
       } else {
@@ -91,7 +92,7 @@ impl MemPool {
 
   /// Return the memory usage for the memory pool, in number of bytes allocated.
   pub fn memory_usage(&self) -> i64 {
-    self.memory_usage.no_barrier_load()
+    self.memory_usage.get()
   }
 
   fn alloc_fallback(&self, bytes: usize) -> &mut [u8] {
@@ -117,7 +118,8 @@ impl MemPool {
     }
     let result = self.arena.alloc(v);
     let memory_usage: i64 = self.memory_usage() + bytes as i64;
-    self.memory_usage.no_barrier_store(memory_usage);
+    self.memory_usage.set(memory_usage);
+    println!("mem usage: {}", self.memory_usage());
     result
   }
 }
@@ -185,7 +187,8 @@ mod tests {
     assert_eq!(v2.len(), 512);
 
     assert!(!mem_pool.alloc_ptr.get().is_null());
-    assert_eq!(mem_pool.alloc_bytes_remaining.get(), K_BLOCK_SIZE - 512 - ptr_size);
+    assert_eq!(mem_pool.alloc_bytes_remaining.get(),
+               K_BLOCK_SIZE - 512 - ptr_size);
   }
 
   #[test]
