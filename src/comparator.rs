@@ -17,14 +17,13 @@
 
 use std::cmp::Ordering;
 
-use slice::Slice;
-
-pub trait Comparator {
+/// A comparator for type `T`.
+pub trait Comparator<T> {
   /// Three-way comparison. Returns value:
   ///   `Ordering::Less`    iff `self` < `b`
   ///   `Ordering::Equal`   iff `self` = `b`
   ///   `Ordering::Greater` iff `self` > `b`
-  fn compare(a: &Slice, b: &Slice) -> Ordering;
+  fn compare(&self, a: &T, b: &T) -> Ordering;
 
   // The name of the comparator.  Used to check for comparator
   // mismatches (i.e., a DB created with one comparator is

@@ -15,10 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::ptr::null_mut;
-use std::mem::size_of;
+use std::{ptr, mem, slice};
 use std::cell::Cell;
-use std::slice::from_raw_parts_mut;
 use arena::TypedArena;
 
 const K_BLOCK_SIZE: usize = 4096;
@@ -37,7 +35,7 @@ pub struct MemPool {
 impl MemPool {
   pub fn new() -> Self {
     Self {
-      alloc_ptr: Cell::new(null_mut()),
+      alloc_ptr: Cell::new(ptr::null_mut()),
       alloc_bytes_remaining: Cell::new(0),
       arena: TypedArena::new(),
       memory_usage: Cell::new(0)
@@ -55,7 +53,7 @@ impl MemPool {
         self.alloc_ptr.set(self.alloc_ptr.get().offset(bytes as isize));
         self.alloc_bytes_remaining.set(
           self.alloc_bytes_remaining.get() - bytes);
-        return from_raw_parts_mut(result, bytes)
+        return slice::from_raw_parts_mut(result, bytes)
       }
     }
     self.alloc_fallback(bytes)
@@ -65,7 +63,7 @@ impl MemPool {
   /// address.
   /// Return a unique reference to the slice allocated.
   pub fn alloc_aligned(&self, bytes: usize) -> &mut [u8] {
-    let ptr_size = size_of::<usize>(); // TODO: double-check this
+    let ptr_size = mem::size_of::<usize>(); // TODO: double-check this
     assert!(ptr_size <= 128);
     let align = if ptr_size > 8 { ptr_size } else { 8 };
     assert!(align & (align - 1) == 0);
@@ -86,7 +84,7 @@ impl MemPool {
       };
     assert!(result as usize & (align-1) == 0);
     unsafe {
-      from_raw_parts_mut(result, bytes)
+      slice::from_raw_parts_mut(result, bytes)
     }
   }
 
@@ -107,7 +105,7 @@ impl MemPool {
     unsafe {
       self.alloc_ptr.set(self.alloc_ptr.get().offset(bytes as isize));
       self.alloc_bytes_remaining.set(self.alloc_bytes_remaining.get() - bytes);
-      from_raw_parts_mut(result, bytes)
+      slice::from_raw_parts_mut(result, bytes)
     }
   }
 
@@ -115,11 +113,11 @@ impl MemPool {
     let mut v = Vec::with_capacity(bytes);
     unsafe {
       v.set_len(bytes);
+      ptr::write_bytes(v.as_mut_ptr(), 0, bytes);
     }
     let result = self.arena.alloc(v);
     let memory_usage: i64 = self.memory_usage() + bytes as i64;
     self.memory_usage.set(memory_usage);
-    println!("mem usage: {}", self.memory_usage());
     result
   }
 }

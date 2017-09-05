@@ -19,7 +19,9 @@
 #![feature(rustc_private)]
 
 extern crate arena;
+extern crate rand;
 
 pub mod util;
 pub mod slice;
 pub mod comparator;
+pub mod skiplist;
