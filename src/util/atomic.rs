@@ -21,11 +21,11 @@ use std::sync::atomic::compiler_fence;
 // -------------------------------------------------------------------
 // Atomic types implemented using compile fences in Rust
 
-pub struct AtomicPtr<T> {
+pub struct AtomicPointer<T> {
   rep: *mut T
 }
 
-impl<T> AtomicPtr<T> {
+impl<T> AtomicPointer<T> {
   pub fn new(r: *mut T) -> Self { Self { rep: r } }
 
   #[inline(always)]
@@ -53,33 +53,52 @@ impl<T> AtomicPtr<T> {
 }
 
 
-pub struct AtomicI64 {
-  rep: i64
+macro_rules! define_scalar_atomic {
+  ($type_name:ident, $type:ty) => {
+    pub struct $type_name {
+      rep: $type
+    }
+
+    impl $type_name {
+      pub fn new(r: $type) -> Self {
+        Self {
+          rep: r
+        }
+      }
+
+      #[inline(always)]
+      pub fn no_barrier_load(&self) -> $type {
+        self.rep
+      }
+
+      #[inline(always)]
+      pub fn no_barrier_store(&mut self, v: $type) {
+        self.rep = v;
+      }
+
+      #[inline(always)]
+      pub fn acquire_load(&self) -> $type {
+        let result = self.rep;
+        compiler_fence(Ordering::Acquire);
+        result
+      }
+
+      #[inline(always)]
+      pub fn release_store(&mut self, v: $type) {
+        compiler_fence(Ordering::Release);
+        self.rep = v;
+      }
+    }
+  }
 }
 
-impl AtomicI64 {
-  pub fn new(r: i64) -> Self { Self { rep: r } }
-
-  #[inline(always)]
-  pub fn no_barrier_load(&self) -> i64 {
-    self.rep
-  }
-
-  #[inline(always)]
-  pub fn no_barrier_store(&mut self, v: i64) {
-    self.rep = v;
-  }
-
-  #[inline(always)]
-  pub fn acquire_load(&self) -> i64 {
-    let result = self.rep;
-    compiler_fence(Ordering::Acquire);
-    result
-  }
-
-  #[inline(always)]
-  pub fn release_store(&mut self, v: i64) {
-    compiler_fence(Ordering::Release);
-    self.rep = v;
-  }
-}
+define_scalar_atomic!(AtomicI8, i8);
+define_scalar_atomic!(AtomicI16, i16);
+define_scalar_atomic!(AtomicI32, i32);
+define_scalar_atomic!(AtomicI64, i64);
+define_scalar_atomic!(AtomicIsize, isize);
+define_scalar_atomic!(AtomicU8, u8);
+define_scalar_atomic!(AtomicU16, u16);
+define_scalar_atomic!(AtomicU32, u32);
+define_scalar_atomic!(AtomicU64, u64);
+define_scalar_atomic!(AtomicUsize, usize);
