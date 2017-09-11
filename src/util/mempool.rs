@@ -16,7 +16,7 @@
 // under the License.
 
 use std::{ptr, mem, slice};
-use std::cell::Cell;
+use std::cell::{Cell, RefCell};
 use arena::TypedArena;
 
 const K_BLOCK_SIZE: usize = 4096;
@@ -26,17 +26,21 @@ const K_BLOCK_SIZE: usize = 4096;
 /// does not need to hold a unique reference to the struct in order
 /// to call its functions.
 pub struct MemPool {
-  alloc_ptr: Cell<*mut u8>,
-  alloc_bytes_remaining: Cell<usize>,
+  chunk: RefCell<ChunkInfo>,
   arena: TypedArena<Vec<u8>>,
   memory_usage: Cell<i64>
 }
 
+struct ChunkInfo {
+  ptr: *mut u8,
+  bytes_remaining: usize
+}
+
 impl MemPool {
   pub fn new() -> Self {
+    let chunk = ChunkInfo { ptr: ptr::null_mut(), bytes_remaining: 0 };
     Self {
-      alloc_ptr: Cell::new(ptr::null_mut()),
-      alloc_bytes_remaining: Cell::new(0),
+      chunk: RefCell::new(chunk),
       arena: TypedArena::new(),
       memory_usage: Cell::new(0)
     }
@@ -46,13 +50,14 @@ impl MemPool {
   /// Return a unique reference to the slice allocated.
   pub fn alloc(&self, bytes: usize) -> &mut [u8] {
     assert!(bytes > 0);
-    if bytes <= self.alloc_bytes_remaining.get() {
-      assert!(!self.alloc_ptr.get().is_null());
-      let result = self.alloc_ptr.get();
+    let bytes_remaining = self.chunk.borrow().bytes_remaining;
+    if bytes <= bytes_remaining {
+      let mut chunk_info = self.chunk.borrow_mut();
+      assert!(!chunk_info.ptr.is_null());
+      let result = chunk_info.ptr;
       unsafe {
-        self.alloc_ptr.set(self.alloc_ptr.get().offset(bytes as isize));
-        self.alloc_bytes_remaining.set(
-          self.alloc_bytes_remaining.get() - bytes);
+        chunk_info.ptr = chunk_info.ptr.offset(bytes as isize);
+        chunk_info.bytes_remaining -= bytes;
         return slice::from_raw_parts_mut(result, bytes)
       }
     }
@@ -67,21 +72,25 @@ impl MemPool {
     assert!(ptr_size <= 128);
     let align = if ptr_size > 8 { ptr_size } else { 8 };
     assert!(align & (align - 1) == 0);
-    let current_mod = self.alloc_ptr.get() as usize & (align-1);
-    let slop = if current_mod == 0 { 0 } else { align - current_mod };
+
+    let (bytes_remaining, slop) = {
+      let chunk_info = self.chunk.borrow();
+      let current_mod = chunk_info.ptr as usize & (align-1);
+      let slop = if current_mod == 0 { 0 } else { align - current_mod };
+      (chunk_info.bytes_remaining, slop)
+    };
     let needed = bytes + slop;
-    let result =
-      if needed <= self.alloc_bytes_remaining.get() {
-        unsafe {
-          let r = self.alloc_ptr.get().offset(slop as isize);
-          self.alloc_ptr.set(self.alloc_ptr.get().offset(needed as isize));
-          self.alloc_bytes_remaining.set(
-            self.alloc_bytes_remaining.get() - needed);
-          r
-        }
-      } else {
-        self.alloc_fallback(bytes).as_mut_ptr()
-      };
+    let result = if needed <= bytes_remaining {
+      unsafe {
+        let mut chunk_info = self.chunk.borrow_mut();
+        let p = chunk_info.ptr.offset(slop as isize);
+        chunk_info.ptr = chunk_info.ptr.offset(needed as isize);
+        chunk_info.bytes_remaining -= needed;
+        p
+      }
+    } else {
+      self.alloc_fallback(bytes).as_mut_ptr()
+    };
     assert!(result as usize & (align-1) == 0);
     unsafe {
       slice::from_raw_parts_mut(result, bytes)
@@ -98,13 +107,14 @@ impl MemPool {
       return self.alloc_new(bytes)
     }
 
-    self.alloc_ptr.set(self.alloc_new(K_BLOCK_SIZE).as_mut_ptr());
-    self.alloc_bytes_remaining.set(K_BLOCK_SIZE);
+    let mut chunk_info = self.chunk.borrow_mut();
+    chunk_info.ptr = self.alloc_new(K_BLOCK_SIZE).as_mut_ptr();
+    chunk_info.bytes_remaining = K_BLOCK_SIZE;
 
-    let result = self.alloc_ptr.get();
+    let result = chunk_info.ptr;
     unsafe {
-      self.alloc_ptr.set(self.alloc_ptr.get().offset(bytes as isize));
-      self.alloc_bytes_remaining.set(self.alloc_bytes_remaining.get() - bytes);
+      chunk_info.ptr = chunk_info.ptr.offset(bytes as isize);
+      chunk_info.bytes_remaining -= bytes;
       slice::from_raw_parts_mut(result, bytes)
     }
   }
@@ -129,8 +139,7 @@ mod tests {
   #[test]
   fn test_new() {
     let mem_pool = MemPool::new();
-    assert!(mem_pool.alloc_ptr.get().is_null());
-    assert_eq!(mem_pool.alloc_bytes_remaining.get(), 0);
+    check_chunk_info(&mem_pool, true, 0);
     assert_eq!(mem_pool.memory_usage(), 0);
   }
 
@@ -141,15 +150,13 @@ mod tests {
     let v1 = mem_pool.alloc_new(128);
     assert_eq!(v1.len(), 128);
 
-    assert!(mem_pool.alloc_ptr.get().is_null());
-    assert_eq!(mem_pool.alloc_bytes_remaining.get(), 0);
+    check_chunk_info(&mem_pool, true, 0);
     assert_eq!(mem_pool.memory_usage(), 128);
 
     let v2 = mem_pool.alloc_new(256);
     assert_eq!(v2.len(), 256);
 
-    assert!(mem_pool.alloc_ptr.get().is_null());
-    assert_eq!(mem_pool.alloc_bytes_remaining.get(), 0);
+    check_chunk_info(&mem_pool, true, 0);
     assert_eq!(mem_pool.memory_usage(), 256 + 128);
   }
 
@@ -160,15 +167,13 @@ mod tests {
     let v1 = mem_pool.alloc_fallback(1025);
     assert_eq!(v1.len(), 1025);
 
-    assert!(mem_pool.alloc_ptr.get().is_null());
-    assert_eq!(mem_pool.alloc_bytes_remaining.get(), 0);
+    check_chunk_info(&mem_pool, true, 0);
     assert_eq!(mem_pool.memory_usage(), 1025);
 
     let v2 = mem_pool.alloc_fallback(512);
     assert_eq!(v2.len(), 512);
 
-    assert!(!mem_pool.alloc_ptr.get().is_null());
-    assert_eq!(mem_pool.alloc_bytes_remaining.get(), K_BLOCK_SIZE - 512);
+    check_chunk_info(&mem_pool, false, K_BLOCK_SIZE - 512);
     assert_eq!(mem_pool.memory_usage(), 1025 + K_BLOCK_SIZE as i64);
   }
 
@@ -184,9 +189,7 @@ mod tests {
     let v2 = mem_pool.alloc_aligned(512);
     assert_eq!(v2.len(), 512);
 
-    assert!(!mem_pool.alloc_ptr.get().is_null());
-    assert_eq!(mem_pool.alloc_bytes_remaining.get(),
-               K_BLOCK_SIZE - 512 - ptr_size);
+    check_chunk_info(&mem_pool, false, K_BLOCK_SIZE - 512 - ptr_size);
   }
 
   #[test]
@@ -195,28 +198,33 @@ mod tests {
 
     let _ = mem_pool.alloc(128);
 
-    assert!(!mem_pool.alloc_ptr.get().is_null());
-    assert_eq!(mem_pool.alloc_bytes_remaining.get(), 3968);
+    check_chunk_info(&mem_pool, false, 3968);
     assert_eq!(mem_pool.memory_usage(), 4096);
 
     let _ = mem_pool.alloc(1024); // should allocate from existing block
 
-    assert_eq!(mem_pool.alloc_bytes_remaining.get(), 2944);
+    check_chunk_info(&mem_pool, false, 2944);
     assert_eq!(mem_pool.memory_usage(), 4096);
 
     let _ = mem_pool.alloc(8192); // should allocate new block
 
-    assert_eq!(mem_pool.alloc_bytes_remaining.get(), 2944);
+    check_chunk_info(&mem_pool, false, 2944);
     assert_eq!(mem_pool.memory_usage(), 12288);
 
     let _ = mem_pool.alloc(2048); // should allocate from existing block
 
-    assert_eq!(mem_pool.alloc_bytes_remaining.get(), 896);
+    check_chunk_info(&mem_pool, false, 896);
     assert_eq!(mem_pool.memory_usage(), 12288);
 
     let _ = mem_pool.alloc(1024); // should allocate new block
 
-    assert_eq!(mem_pool.alloc_bytes_remaining.get(), 3072);
+    check_chunk_info(&mem_pool, false, 3072);
     assert_eq!(mem_pool.memory_usage(), 16384);
+  }
+
+  fn check_chunk_info(mem_pool: &MemPool, is_null: bool, bytes: usize) {
+    let chunk_info = mem_pool.chunk.borrow();
+    assert_eq!(chunk_info.ptr.is_null(), is_null);
+    assert_eq!(chunk_info.bytes_remaining, bytes);
   }
 }
