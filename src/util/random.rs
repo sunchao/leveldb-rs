@@ -15,8 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::cell::Cell;
+
 pub struct Random {
-  seed: u32
+  seed: Cell<u32>
 }
 
 /// A simple random number generator that uses multiplicative
@@ -27,31 +29,33 @@ impl Random {
     if seed == 0 || seed == 2147483647 {
       seed = 1
     }
-    Self { seed: seed }
+    Self { seed: Cell::new(seed) }
   }
 
   /// Returns the next random number in this generator.
-  pub fn next(&mut self) -> u32 {
+  pub fn next(&self) -> u32 {
     // See https://en.wikipedia.org/wiki/Linear_congruential_generator
     let m: u32 = 2147483647;
     let a: u64 = 16807;
-    let product: u64 = self.seed as u64 * a;
+    let product: u64 = self.seed.get() as u64 * a;
 
-    self.seed = (product >> 31) as u32 + ((product as u32) & m);
+    self.seed.set((product >> 31) as u32 + ((product as u32) & m));
 
-    if self.seed > m { self.seed -= m }
-    self.seed
+    if self.seed.get() > m {
+      self.seed.set(self.seed.get() - m);
+    }
+    self.seed.get()
   }
 
   /// Returns a uniformly distributed value in the range `[0..n)`
   #[inline(always)]
-  pub fn uniform(&mut self, n: u32) -> u32 {
+  pub fn uniform(&self, n: u32) -> u32 {
     self.next() % n
   }
 
   /// Randomly returns true ~ "1/n" of the time. False otherwise.
   #[inline(always)]
-  pub fn one_in(&mut self, n: u32) -> bool {
+  pub fn one_in(&self, n: u32) -> bool {
     self.next() % n == 0
   }
 
@@ -60,7 +64,7 @@ impl Random {
   /// number in the range `[0, 2^max_log)` with exponential bias towards
   /// smaller numbers.
   #[inline(always)]
-  pub fn skewed(&mut self, max_log: u32) -> u32 {
+  pub fn skewed(&self, max_log: u32) -> u32 {
     let r = 1 << self.uniform(max_log + 1);
     self.uniform(r)
   }
@@ -74,9 +78,9 @@ mod tests {
   #[test]
   fn test_random() {
     let mut rnd = Random::new(0);
-    assert_eq!(rnd.seed, 1);
+    assert_eq!(rnd.seed.get(), 1);
     rnd = Random::new(2147483647);
-    assert_eq!(rnd.seed, 1);
+    assert_eq!(rnd.seed.get(), 1);
 
     rnd = Random::new(3);
     assert_eq!(rnd.next(), 50421);

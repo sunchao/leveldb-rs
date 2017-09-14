@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::cell::UnsafeCell;
 use std::sync::atomic::Ordering;
 use std::sync::atomic::compiler_fence;
 
@@ -22,76 +23,87 @@ use std::sync::atomic::compiler_fence;
 // Atomic types implemented using compile fences in Rust
 
 pub struct AtomicPointer<T> {
-  rep: *mut T
+  rep: UnsafeCell<*mut T>
 }
 
 impl<T> AtomicPointer<T> {
-  pub fn new(r: *mut T) -> Self { Self { rep: r } }
+  pub fn new(r: *mut T) -> Self { Self { rep: UnsafeCell::new(r) } }
 
   #[inline(always)]
   pub fn no_barrier_load(&self) -> *mut T {
-    self.rep
+    unsafe { *self.rep.get() }
   }
 
   #[inline(always)]
-  pub fn no_barrier_store(&mut self, v: *mut T) {
-    self.rep = v;
+  pub fn no_barrier_store(&self, v: *mut T) {
+    unsafe { *self.rep.get() = v; }
   }
 
   #[inline(always)]
   pub fn acquire_load(&self) -> *mut T {
-    let result = self.rep;
-    compiler_fence(Ordering::Acquire);
-    result
+    unsafe {
+      let result = self.rep.get();
+      compiler_fence(Ordering::Acquire);
+      *result
+    }
   }
 
   #[inline(always)]
   pub fn release_store(&mut self, v: *mut T) {
     compiler_fence(Ordering::Release);
-    self.rep = v;
+    unsafe { *self.rep.get() = v; }
   }
 }
+
+unsafe impl<T> Sync for AtomicPointer<T> {}
+unsafe impl<T> Send for AtomicPointer<T> {}
 
 
 macro_rules! define_scalar_atomic {
   ($type_name:ident, $type:ty) => {
     pub struct $type_name {
-      rep: $type
+      rep: UnsafeCell<$type>
     }
 
     impl $type_name {
       pub fn new(r: $type) -> Self {
         Self {
-          rep: r
+          rep: UnsafeCell::new(r)
         }
       }
 
       #[inline(always)]
       pub fn no_barrier_load(&self) -> $type {
-        self.rep
+        unsafe { *self.rep.get() }
       }
 
       #[inline(always)]
-      pub fn no_barrier_store(&mut self, v: $type) {
-        self.rep = v;
+      pub fn no_barrier_store(&self, v: $type) {
+        unsafe { *self.rep.get() = v; }
       }
 
       #[inline(always)]
       pub fn acquire_load(&self) -> $type {
-        let result = self.rep;
-        compiler_fence(Ordering::Acquire);
-        result
+        unsafe {
+          let result = self.rep.get();
+          compiler_fence(Ordering::Acquire);
+          *result
+        }
       }
 
       #[inline(always)]
-      pub fn release_store(&mut self, v: $type) {
+      pub fn release_store(&self, v: $type) {
         compiler_fence(Ordering::Release);
-        self.rep = v;
+        unsafe { *self.rep.get() = v; }
       }
     }
+
+    unsafe impl Send for $type_name {}
+    unsafe impl Sync for $type_name {}
   }
 }
 
+define_scalar_atomic!(AtomicBool, bool);
 define_scalar_atomic!(AtomicI8, i8);
 define_scalar_atomic!(AtomicI16, i16);
 define_scalar_atomic!(AtomicI32, i32);

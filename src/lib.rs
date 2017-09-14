@@ -19,7 +19,7 @@
 #![feature(rustc_private)]
 
 extern crate arena;
-extern crate rand;
+extern crate crossbeam;
 
 pub mod util;
 pub mod slice;

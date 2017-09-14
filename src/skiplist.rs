@@ -17,10 +17,10 @@
 
 use std::{mem, slice, ptr};
 use std::cmp::Ordering;
-use rand::{thread_rng, Rng, ThreadRng};
 
-use util::mempool::MemPool;
 use util::atomic::{AtomicPointer, AtomicUsize};
+use util::mempool::MemPool;
+use util::random::Random;
 use super::comparator::Comparator;
 
 
@@ -46,12 +46,14 @@ use super::comparator::Comparator;
 /// a node and use release-stores to publish the nodes in one or
 /// more lists.
 ///
+// TODO: double check the `Key: 'a` constraint
+// TODO: implement `Send` and `Sync` for this struct?
 pub struct SkipList<'a, K> where K: 'a {
   cmp: Box<Comparator<K>>,
   mem_pool: &'a MemPool,
   head: *mut Node<'a, K>,
   max_height: AtomicUsize,
-  rng: ThreadRng
+  rnd: Random
 }
 
 const MAX_HEIGHT: usize = 12;
@@ -75,20 +77,20 @@ impl<'a, K> SkipList<'a, K> where K: 'a, K: Default {
     mem_pool: &'a MemPool,
   ) -> Self {
     let h = Node::new_node(mem_pool, K::default(), MAX_HEIGHT);
-    let rng = thread_rng();
+    let rnd = Random::new(0xdeadbeef);
     Self {
       cmp: cmp,
       mem_pool: mem_pool,
       head: h,
       max_height: AtomicUsize::new(1),
-      rng: rng
+      rnd: rnd
     }
   }
 
   /// Insert the `key` into this skiplist.
   /// The `key` should NOT already exist in the skiplist and the caller
   /// of this function needs to make sure that.
-  pub fn insert(&mut self, key: K) {
+  pub fn insert(&self, key: K) {
     let mut prev = [ptr::null_mut(); MAX_HEIGHT];
     let x = self.find_greater_or_equal(&key, Some(&mut prev));
 
@@ -124,9 +126,9 @@ impl<'a, K> SkipList<'a, K> where K: 'a, K: Default {
   }
 
   /// Generate a random height in the range of `[1, MAX_HEIGHT]`.
-  fn random_height(&mut self) -> usize {
+  fn random_height(&self) -> usize {
     let mut height = 1;
-    while height < MAX_HEIGHT && self.rng.next_u32() % BRANCHING == 0 {
+    while height < MAX_HEIGHT && self.rnd.next() % BRANCHING == 0 {
       height += 1;
     }
     assert!(height > 0);
@@ -162,10 +164,14 @@ impl<'a, K> SkipList<'a, K> where K: 'a, K: Default {
     mut prev: Option<&mut [*mut Node<'a, K>]>
   ) -> *mut Node<'a, K> {
     let mut x = self.head;
+    if self.max_height() < 1 {
+      panic!("failed");
+    }
     let mut level = self.max_height() - 1;
     loop {
       let next = unsafe {
-        (*x).next(level as usize)
+        let result = (*x).next(level as usize);
+        result
       };
       if self.key_is_after(key, next) {
         // Keep searching in the list
@@ -189,7 +195,8 @@ impl<'a, K> SkipList<'a, K> where K: 'a, K: Default {
     let mut level = self.max_height() - 1;
     loop {
       let next = unsafe {
-        (*x).next(level as usize)
+        let result = (*x).next(level as usize);
+        result
       };
       if next.is_null() {
         if level == 0 {
@@ -210,7 +217,8 @@ impl<'a, K> SkipList<'a, K> where K: 'a, K: Default {
     let mut level = self.max_height() - 1;
     loop {
       let next = unsafe {
-        (*x).next(level as usize)
+        let result = (*x).next(level as usize);
+        result
       };
       if next.is_null() || self.greater_or_equal(Node::get_key(next), key) {
         if level == 0 {
@@ -286,10 +294,11 @@ impl<'a, K> Node<'a, K> {
     let (left, right) = mem.split_at_mut(mem::size_of::<Node<'a, K>>());
     let node = left.as_mut_ptr() as *mut Node<'a, K>;
     let values = unsafe {
-      slice::from_raw_parts_mut(
+      let result = slice::from_raw_parts_mut(
         right.as_mut_ptr() as *mut AtomicPointer<Node<'a, K>>,
         height
-      )
+      );
+      result
     };
     unsafe {
       (*node).key = key;
@@ -304,7 +313,8 @@ impl<'a, K> Node<'a, K> {
   pub fn get_key(n: *const Node<'a, K>) -> &K {
     assert!(!n.is_null());
     unsafe {
-      &(*n).key
+      let result = &(*n).key;
+      result
     }
   }
 
@@ -391,7 +401,8 @@ impl<'a, 'b, K> SkipListIterator<'a, 'b, K> where K: Default {
   pub fn seek_to_first(&mut self) {
     self.node = unsafe {
       let h = self.list.head;
-      (*h).next(0)
+      let result = (*h).next(0);
+      result
     };
   }
 
@@ -408,10 +419,15 @@ impl<'a, 'b, K> SkipListIterator<'a, 'b, K> where K: Default {
 
 #[cfg(test)]
 mod tests {
+  use std::slice;
   use std::collections::BTreeSet;
   use std::collections::Bound::{Included, Unbounded};
+  use std::sync::{Mutex, Condvar};
+  use crossbeam;
 
   use super::*;
+  use util::atomic::{AtomicU64, AtomicBool};
+  use util::hash;
 
   #[test]
   fn test_new_node() {
@@ -465,11 +481,11 @@ mod tests {
     let mut keys: BTreeSet<u64> = BTreeSet::new();
     let cmp = KeyComparator {};
     let mem_pool = MemPool::new();
-    let mut list = SkipList::new(Box::new(cmp), &mem_pool);
-    let mut rnd = thread_rng();
+    let list = SkipList::new(Box::new(cmp), &mem_pool);
+    let rnd = Random::new(1000);
 
     for _ in 0..N {
-      let key = rnd.next_u32() % R;
+      let key = rnd.next() % R;
       if keys.insert(key as u64) {
         list.insert(key as u64);
       }
@@ -537,7 +553,253 @@ mod tests {
     assert!(!iter.valid());
   }
 
-  // TODO: add concurrency tests
+  // concurrency tests
+
+  const K: u64 = 4;
+
+  fn key(key: &Key) -> u64 { key >> 40 }
+  fn gen(key: &Key) -> u64 { (key >> 8) & 0xffffffffu64 }
+  fn hash(key: &Key) -> u64 { key & 0xff }
+
+  fn hash_numbers(k: u64, g: u64) -> u64 {
+    let v: &[u8] = unsafe {
+      let data: [u64; 2] = [k, g];
+      let result = slice::from_raw_parts(
+        &data as *const u64 as *const u8, 2 * 8);
+      result
+    };
+    hash::hash(v, 0u32) as u64
+  }
+
+  fn make_key(k: u64, g: u64) -> Key {
+    assert!(k <= K);
+    assert!(g <= 0xffffffffu64);
+    (k << 40) | (g << 8) | (hash_numbers(k, g) & 0xff)
+  }
+
+  fn is_valid_key(k: &Key) -> bool {
+    hash(k) == (hash_numbers(key(k), gen(k)) & 0xff)
+  }
+
+  fn random_target(rnd: &Random) -> Key {
+    match rnd.next() % 10 {
+      0 => make_key(0, 0), // seek to beginning
+      1 => make_key(K, 0), // seek to end
+      _ => make_key(rnd.next() as u64 % K, 0) // seek to middle
+    }
+  }
+
+  struct ConcurrencyTester<'a> {
+    current: State,
+    list: SkipList<'a, Key>
+  }
+
+  // Should be safe since `current` and `list` are both thread-safe.
+
+  unsafe impl<'a> Send for ConcurrencyTester<'a> {}
+  unsafe impl<'a> Sync for ConcurrencyTester<'a> {}
+
+  impl<'a> ConcurrencyTester<'a> {
+    pub fn new(mem_pool: &'a MemPool) -> Self {
+      let cmp = KeyComparator {};
+      Self {
+        current: State::new(),
+        list: SkipList::new(Box::new(cmp), mem_pool)
+      }
+    }
+
+    fn write_step(&self, rnd: &Random) {
+      let k = rnd.next() as u64 % K;
+      let g = self.current.get(k) + 1;
+      let key = make_key(k as u64, g as u64);
+      self.list.insert(key);
+      self.current.set(k, g);
+    }
+
+    fn read_step(&self, rnd: &Random) {
+      let initial_state = State::new();
+      for k in 0..K {
+        initial_state.set(k, self.current.get(k));
+      }
+
+      let mut pos = random_target(rnd);
+      let mut iter = SkipListIterator::new(&self.list);
+      iter.seek(&pos);
+
+      loop {
+        let current = if !iter.valid() {
+          make_key(K, 0)
+        } else {
+          let k = iter.key();
+          assert!(is_valid_key(k));
+          *k
+        };
+
+        assert!(pos <= current, "should not go backwards");
+
+        // verify that everything in [pos, current) was not present in
+        // `initial_state`
+        while pos < current {
+          assert!(key(&pos) < K);
+          assert!(gen(&pos) == 0 || gen(&pos) > initial_state.get(key(&pos)),
+                  "key = {}, gen(&pos) = {}, initial_state.get(key(&pos)) = {}",
+                  key(&pos), gen(&pos), initial_state.get(key(&pos))
+          );
+
+          // advance to next key in the valid key space
+          pos = if key(&pos) < key(&current) {
+            make_key(key(&pos) + 1, 0)
+          } else {
+            make_key(key(&pos), gen(&pos) + 1)
+          }
+        }
+
+        if !iter.valid() {
+          break
+        }
+
+        if rnd.next() % 2 == 1 {
+          iter.next();
+          pos = make_key(key(&pos), gen(&pos) + 1);
+        } else {
+          let new_target = random_target(rnd);
+          if new_target > pos {
+            pos = new_target;
+            iter.seek(&new_target);
+          }
+        }
+      }
+    }
+  }
+
+  struct State {
+    generation: Vec<AtomicU64>
+  }
+
+  impl State {
+    fn new() -> Self {
+      let mut gen: Vec<AtomicU64> = Vec::new();
+      for _ in 0..K {
+        gen.push(AtomicU64::new(0));
+      }
+      State {
+        generation: gen
+      }
+    }
+
+    fn get(&self, k: u64) -> u64 {
+      self.generation[k as usize].acquire_load() 
+    }
+
+    fn set(&self, k: u64, v: u64) {
+      self.generation[k as usize].release_store(v);
+    }
+  }
+
+  // TODO: make this configurable
+  const SEED: u32 = 301;
+
+  #[test]
+  fn test_concurrent_without_threads() {
+    let mem_pool = MemPool::new();
+    let tester = ConcurrencyTester::new(&mem_pool);
+    let rnd = Random::new(SEED);
+    for _ in 0..10000 {
+      tester.read_step(&rnd);
+      tester.write_step(&rnd);
+    }
+  }
+
+
+  struct TestState {
+    seed: u32,
+    quit_flag: AtomicBool,
+    mu: (Mutex<ReaderState>, Condvar)
+  }
+
+  impl TestState {
+    fn new(
+      s: u32,
+      flag: AtomicBool,
+      mu: (Mutex<ReaderState>, Condvar)
+    ) -> Self {
+      TestState {
+        seed: s,
+        quit_flag: flag,
+        mu: mu
+      }
+    }
+
+    fn wait(&self, s: ReaderState) {
+      let &(ref mu, ref cv) = &self.mu;
+      let mut guard = mu.lock().unwrap();
+      while *guard != s {
+        guard = cv.wait(guard).unwrap();
+      }
+    }
+
+    fn change(&self, state: ReaderState) {
+      let &(ref mu, ref cv) = &self.mu;
+      let mut guard = mu.lock().unwrap();
+      *guard = state;
+      cv.notify_all();
+    }
+  }
+
+  #[derive(PartialEq, Eq)]
+  enum ReaderState {
+    STARTING,
+    RUNNING,
+    DONE
+  }
+
+  // Helper func that spawns two threads to do read/write concurrently.
+  // Note that this uses scoped threads so no `Arc` is required.
+  // TODO: should we declare `rnd` outside the loop? we need it to be
+  // `Send/Sync` though.
+  fn run_concurrent<'a>(run: u32) {
+    let seed = SEED + run * 100;
+    const N: u32 = 1000;
+    const K_SIZE: u32 = 1000;
+
+    for _ in 0..N {
+      let state = TestState::new(
+        seed + 1, AtomicBool::new(false),
+        (Mutex::new(ReaderState::STARTING), Condvar::new())
+      );
+      let mem_pool = MemPool::new();
+      let tester = ConcurrencyTester::new(&mem_pool);
+
+      crossbeam::scope(|scope| {
+        scope.spawn(|| {
+          let rnd = Random::new(state.seed);
+          state.change(ReaderState::RUNNING);
+          while !state.quit_flag.acquire_load() {
+            tester.read_step(&rnd);
+          }
+          state.change(ReaderState::DONE);
+        });
+        scope.spawn(|| {
+          state.wait(ReaderState::RUNNING);
+          let rnd = Random::new(seed);
+          for _ in 0..K_SIZE {
+            tester.write_step(&rnd);
+          }
+          state.quit_flag.release_store(true);
+          state.wait(ReaderState::DONE);
+        });
+      });
+    }
+  }
+
+  #[test] fn test_concurrent1() { run_concurrent(1); }
+  #[test] fn test_concurrent2() { run_concurrent(2); }
+  #[test] fn test_concurrent3() { run_concurrent(3); }
+  #[test] fn test_concurrent4() { run_concurrent(4); }
+  #[test] fn test_concurrent5() { run_concurrent(5); }
+
+
+  // auxiliary definitions
 
   type Key = u64;
 

@@ -58,7 +58,8 @@ impl MemPool {
       unsafe {
         chunk_info.ptr = chunk_info.ptr.offset(bytes as isize);
         chunk_info.bytes_remaining -= bytes;
-        return slice::from_raw_parts_mut(result, bytes)
+        let result = slice::from_raw_parts_mut(result, bytes);
+        return result;
       }
     }
     self.alloc_fallback(bytes)
@@ -74,7 +75,8 @@ impl MemPool {
     assert!(align & (align - 1) == 0);
 
     let (bytes_remaining, slop) = {
-      let chunk_info = self.chunk.borrow();
+      let chunk_info = self.chunk.try_borrow()
+        .expect("chunk is already borrowed");
       let current_mod = chunk_info.ptr as usize & (align-1);
       let slop = if current_mod == 0 { 0 } else { align - current_mod };
       (chunk_info.bytes_remaining, slop)
@@ -82,7 +84,8 @@ impl MemPool {
     let needed = bytes + slop;
     let result = if needed <= bytes_remaining {
       unsafe {
-        let mut chunk_info = self.chunk.borrow_mut();
+        let mut chunk_info = self.chunk.try_borrow_mut()
+          .expect("chunk is already borrowed");
         let p = chunk_info.ptr.offset(slop as isize);
         chunk_info.ptr = chunk_info.ptr.offset(needed as isize);
         chunk_info.bytes_remaining -= needed;
@@ -107,7 +110,8 @@ impl MemPool {
       return self.alloc_new(bytes)
     }
 
-    let mut chunk_info = self.chunk.borrow_mut();
+    let mut chunk_info = self.chunk.try_borrow_mut()
+      .expect("chunk is already borrowed");
     chunk_info.ptr = self.alloc_new(K_BLOCK_SIZE).as_mut_ptr();
     chunk_info.bytes_remaining = K_BLOCK_SIZE;
 
@@ -115,7 +119,8 @@ impl MemPool {
     unsafe {
       chunk_info.ptr = chunk_info.ptr.offset(bytes as isize);
       chunk_info.bytes_remaining -= bytes;
-      slice::from_raw_parts_mut(result, bytes)
+      let result = slice::from_raw_parts_mut(result, bytes);
+      result
     }
   }
 
