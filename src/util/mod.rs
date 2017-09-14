@@ -19,3 +19,4 @@ pub mod atomic;
 pub mod mempool;
 pub mod coding;
 pub mod hash;
+pub mod random;
