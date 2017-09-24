@@ -17,9 +17,10 @@
 
 use std::{mem, slice, ptr};
 use std::cmp::Ordering;
+use std::cell::RefCell;
 
 use util::atomic::{AtomicPointer, AtomicUsize};
-use util::mempool::MemPool;
+use util::arena::Arena;
 use util::random::Random;
 use super::comparator::Comparator;
 
@@ -46,12 +47,11 @@ use super::comparator::Comparator;
 /// a node and use release-stores to publish the nodes in one or
 /// more lists.
 ///
-// TODO: double check the `Key: 'a` constraint
 // TODO: implement `Send` and `Sync` for this struct?
-pub struct SkipList<'a, K> where K: 'a {
+pub struct SkipList<K> {
   cmp: Box<Comparator<K>>,
-  mem_pool: &'a MemPool,
-  head: *mut Node<'a, K>,
+  arena: RefCell<Arena>,
+  head: *mut Node<K>,
   max_height: AtomicUsize,
   rnd: Random
 }
@@ -69,18 +69,18 @@ const BRANCHING: u32 = 4; // 25% chance to reach next level
 // Because of the above, this struct should NEVER leak node pointers,
 // to avoid memory leak.
 //
-impl<'a, K> SkipList<'a, K> where K: 'a, K: Default {
+impl<K> SkipList<K> where K: Default {
   /// Create a new skiplist that uses `cmp` to compare keys, and
-  /// `mem_pool` to allocate memory.
+  /// `arena` to allocate memory.
   pub fn new(
     cmp: Box<Comparator<K>>,
-    mem_pool: &'a MemPool,
+    arena: RefCell<Arena>,
   ) -> Self {
-    let h = Node::new_node(mem_pool, K::default(), MAX_HEIGHT);
+    let h = Node::new_node(&arena, K::default(), MAX_HEIGHT);
     let rnd = Random::new(0xdeadbeef);
     Self {
       cmp: cmp,
-      mem_pool: mem_pool,
+      arena: arena,
       head: h,
       max_height: AtomicUsize::new(1),
       rnd: rnd
@@ -105,7 +105,7 @@ impl<'a, K> SkipList<'a, K> where K: 'a, K: Default {
       self.max_height.no_barrier_store(height);
     }
 
-    let x = Node::new_node(self.mem_pool, key, height);
+    let x = Node::new_node(&self.arena, key, height);
     unsafe {
       for i in 0..height {
         (*x).set_next(i, (*(prev[i])).next(i));
@@ -141,7 +141,7 @@ impl<'a, K> SkipList<'a, K> where K: 'a, K: Default {
   /// If `n` is `None`, then it is treated as infinity.
   ///
   /// Return true if `key` is greater than `n`'s key. False otherwise.
-  fn key_is_after(&self, key: &K, n: *mut Node<'a, K>) -> bool {
+  fn key_is_after(&self, key: &K, n: *mut Node<K>) -> bool {
     if n.is_null() {
       false
     } else {
@@ -161,8 +161,8 @@ impl<'a, K> SkipList<'a, K> where K: 'a, K: Default {
   fn find_greater_or_equal(
     &self,
     key: &K,
-    mut prev: Option<&mut [*mut Node<'a, K>]>
-  ) -> *mut Node<'a, K> {
+    mut prev: Option<&mut [*mut Node<K>]>
+  ) -> *mut Node<K> {
     let mut x = self.head;
     if self.max_height() < 1 {
       panic!("failed");
@@ -190,7 +190,7 @@ impl<'a, K> SkipList<'a, K> where K: 'a, K: Default {
   }
 
   /// Return the last node in the list, or `head` if the list is empty.
-  fn find_last(&self) -> *mut Node<'a, K> {
+  fn find_last(&self) -> *mut Node<K> {
     let mut x = self.head;
     let mut level = self.max_height() - 1;
     loop {
@@ -212,7 +212,7 @@ impl<'a, K> SkipList<'a, K> where K: 'a, K: Default {
 
   /// Return the last node whose key is less than `key`, or `head` if
   /// there is no such node.
-  fn find_less_than(&self, key: &K) -> *mut Node<'a, K> {
+  fn find_less_than(&self, key: &K) -> *mut Node<K> {
     let mut x = self.head;
     let mut level = self.max_height() - 1;
     loop {
@@ -269,40 +269,43 @@ impl<'a, K> SkipList<'a, K> where K: 'a, K: Default {
 /// In this case, `node1` has height = 2, and `node2` has height = 3.
 /// `head` always has maximum height.
 ///
-struct Node<'a, K> where K: 'a {
+struct Node<K> {
   // key for this node.
   key: K,
 
   // vector of next links, with length equal to the height of this node.
-  next: &'a mut [AtomicPointer<Node<'a, K>>]
+  next: Box<[AtomicPointer<Node<K>>]>
 }
 
-impl<'a, K> Node<'a, K> {
+impl<K> Node<K> {
   /// Create a new node with `key` and `height`. The memory is allocated using
-  /// `mem_pool`.
+  /// `arena`.
   ///
   /// Return a new unique node instance whose lifetime is the same as
-  /// the `mem_pool`.
+  /// the `arena`.
   pub fn new_node(
-    mem_pool: &'a MemPool,
+    arena_ref: &RefCell<Arena>,
     key: K,
     height: usize
-  ) -> *mut Node<'a, K> {
-    let size = mem::size_of::<Node<'a, K>>() +
-      mem::size_of::<AtomicPointer<Node<'a, K>>>() * height;
-    let mut mem: &'a mut [u8] = mem_pool.alloc_aligned(size);
-    let (left, right) = mem.split_at_mut(mem::size_of::<Node<'a, K>>());
-    let node = left.as_mut_ptr() as *mut Node<'a, K>;
+  ) -> *mut Node<K> {
+    let size = mem::size_of::<Node<K>>() +
+      mem::size_of::<AtomicPointer<Node<K>>>() * height;
+    let mut arena = arena_ref.try_borrow_mut()
+      .expect("Arena should not have been borrowed");
+    let ptr = arena.alloc_aligned(size);
+    let mut mem = unsafe { slice::from_raw_parts_mut(ptr, size) };
+    let (left, right) = mem.split_at_mut(mem::size_of::<Node<K>>());
+    let node = left.as_mut_ptr() as *mut Node<K>;
     let values = unsafe {
-      let result = slice::from_raw_parts_mut(
-        right.as_mut_ptr() as *mut AtomicPointer<Node<'a, K>>,
+      Vec::from_raw_parts(
+        right.as_mut_ptr() as *mut AtomicPointer<Node<K>>,
+        height,
         height
-      );
-      result
+      )
     };
     unsafe {
       (*node).key = key;
-      (*node).next = values;
+      (*node).next = values.into_boxed_slice();
     }
     node
   }
@@ -310,7 +313,7 @@ impl<'a, K> Node<'a, K> {
   /// Get the key for node `n`.
   /// REQUIRES: `n` is not null.
   #[inline(always)]
-  pub fn get_key(n: *const Node<'a, K>) -> &K {
+  pub fn get_key<'a>(n: *const Node<K>) -> &'a K {
     assert!(!n.is_null());
     unsafe {
       let result = &(*n).key;
@@ -322,7 +325,7 @@ impl<'a, K> Node<'a, K> {
   /// at the position, return `None`.
   /// REQUIRES: `n` < height of this node
   #[inline(always)]
-  pub fn next(&self, n: usize) -> *mut Node<'a, K> {
+  pub fn next(&self, n: usize) -> *mut Node<K> {
     assert!(n < self.next.len());
     self.next[n].acquire_load()
   }
@@ -330,7 +333,7 @@ impl<'a, K> Node<'a, K> {
   /// Set the next node at level `n` to be `node`.
   /// REQUIRES: `n` < height of this node
   #[inline(always)]
-  pub fn set_next(&mut self, n: usize, node: *mut Node<'a, K>) {
+  pub fn set_next(&mut self, n: usize, node: *mut Node<K>) {
     assert!(n < self.next.len());
     let ptr = AtomicPointer::new(node);
     self.next[n] = ptr;
@@ -340,14 +343,14 @@ impl<'a, K> Node<'a, K> {
 ///
 /// An iterator on a skiplist with ability to move forward and backward.
 ///
-pub struct SkipListIterator<'a, 'b, K> where 'b: 'a, K: 'b + Default {
-  list: &'a SkipList<'b, K>,
-  node: *const Node<'b, K>
+pub struct SkipListIterator<'a, K> where K: 'a + Default {
+  list: &'a SkipList<K>,
+  node: *const Node<K>
 }
 
-impl<'a, 'b, K> SkipListIterator<'a, 'b, K> where K: Default {
+impl<'a, K> SkipListIterator<'a, K> where K: Default {
   #[inline(always)]
-  pub fn new(list: &'a SkipList<'b, K>) -> Self {
+  pub fn new(list: &'a SkipList<K>) -> Self {
     Self {
       list: list,
       node: ptr::null()
@@ -431,13 +434,13 @@ mod tests {
 
   #[test]
   fn test_new_node() {
-    let mem_pool = MemPool::new();
+    let arena = RefCell::new(Arena::new());
 
-    let mut empty = Vec::new();
-    let mut n0 = Node { key: 28, next: empty.as_mut_slice() };
+    let empty = Vec::new();
+    let mut n0 = Node { key: 28, next: empty.into_boxed_slice() };
     let n: &mut Node<i32> =
       unsafe {
-        mem::transmute(Node::<i32>::new_node(&mem_pool, 42, 3))
+        mem::transmute(Node::<i32>::new_node(&arena, 42, 3))
       };
     n.set_next(0, &mut n0);
 
@@ -458,9 +461,9 @@ mod tests {
 
   #[test]
   fn test_empty() {
-    let mem_pool = MemPool::new();
+    let arena = RefCell::new(Arena::new());
     let cmp = KeyComparator {};
-    let list = SkipList::new(Box::new(cmp), &mem_pool);
+    let list = SkipList::new(Box::new(cmp), arena);
     assert!(!list.contains(&10));
 
     let mut iter = SkipListIterator::new(&list);
@@ -480,8 +483,8 @@ mod tests {
 
     let mut keys: BTreeSet<u64> = BTreeSet::new();
     let cmp = KeyComparator {};
-    let mem_pool = MemPool::new();
-    let list = SkipList::new(Box::new(cmp), &mem_pool);
+    let arena = RefCell::new(Arena::new());
+    let list = SkipList::new(Box::new(cmp), arena);
     let rnd = Random::new(1000);
 
     for _ in 0..N {
@@ -589,22 +592,22 @@ mod tests {
     }
   }
 
-  struct ConcurrencyTester<'a> {
+  struct ConcurrencyTester<> {
     current: State,
-    list: SkipList<'a, Key>
+    list: SkipList<Key>
   }
 
   // Should be safe since `current` and `list` are both thread-safe.
 
-  unsafe impl<'a> Send for ConcurrencyTester<'a> {}
-  unsafe impl<'a> Sync for ConcurrencyTester<'a> {}
+  unsafe impl Send for ConcurrencyTester {}
+  unsafe impl Sync for ConcurrencyTester {}
 
-  impl<'a> ConcurrencyTester<'a> {
-    pub fn new(mem_pool: &'a MemPool) -> Self {
+  impl ConcurrencyTester {
+    pub fn new(arena: RefCell<Arena>) -> Self {
       let cmp = KeyComparator {};
       Self {
         current: State::new(),
-        list: SkipList::new(Box::new(cmp), mem_pool)
+        list: SkipList::new(Box::new(cmp), arena)
       }
     }
 
@@ -701,8 +704,8 @@ mod tests {
 
   #[test]
   fn test_concurrent_without_threads() {
-    let mem_pool = MemPool::new();
-    let tester = ConcurrencyTester::new(&mem_pool);
+    let arena = RefCell::new(Arena::new());
+    let tester = ConcurrencyTester::new(arena);
     let rnd = Random::new(SEED);
     for _ in 0..10000 {
       tester.read_step(&rnd);
@@ -767,8 +770,8 @@ mod tests {
         seed + 1, AtomicBool::new(false),
         (Mutex::new(ReaderState::STARTING), Condvar::new())
       );
-      let mem_pool = MemPool::new();
-      let tester = ConcurrencyTester::new(&mem_pool);
+      let arena = RefCell::new(Arena::new());
+      let tester = ConcurrencyTester::new(arena);
 
       crossbeam::scope(|scope| {
         scope.spawn(|| {

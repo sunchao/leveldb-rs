@@ -16,7 +16,7 @@
 // under the License.
 
 pub mod atomic;
-pub mod mempool;
+pub mod arena;
 pub mod coding;
 pub mod hash;
 pub mod random;
