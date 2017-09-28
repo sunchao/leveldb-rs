@@ -65,7 +65,8 @@ pub fn decode_fixed_64(src: &[u8]) -> u64 {
 }
 
 /// Encode the `value` in varint32 and put it in the first N-bytes of `dst`.
-/// Return N+1.
+/// Return N.
+/// This panics if `dst` doesn't have enough space to encode the value.
 pub fn encode_varint_32(dst: &mut [u8], value: u32) -> usize {
   const B: u32 = 0x80;
   let mut idx = 0;
@@ -99,7 +100,8 @@ pub fn encode_varint_32(dst: &mut [u8], value: u32) -> usize {
 }
 
 /// Encode the `value` in varint64 and put it in the first N-bytes of `dst`.
-/// Return N+1.
+/// Return N.
+/// This panics if `dst` doesn't have enough space to encode the value.
 pub fn encode_varint_64(dst: &mut [u8], mut value: u64) -> usize {
   let mut idx = 0;
   while value & 0xFFFFFFFFFFFFFF80 != 0 {
@@ -111,44 +113,84 @@ pub fn encode_varint_64(dst: &mut [u8], mut value: u64) -> usize {
   idx + 1
 }
 
-/// Decode the first N-bytes of `src` in varint32.
-/// Return a tuple where the first element is the decoded value,
-/// and the second element is N+1.
-pub fn decode_varint_32(src: &[u8]) -> (u32, usize) {
+/// Decode varint32 from `src`.
+/// If `src` begins with a valid varint32, return a tuple
+/// where the first element is the decoded value, and the second element is
+/// the number of bytes for the varint32.
+/// If `src` doesn't contain a valid varint32, return `None`.
+pub fn decode_varint_32(src: &[u8]) -> Option<(u32, usize)> {
+  decode_varint_32_limit(src, src.len())
+}
+
+/// Decode varint32 from the first `limit` bytes of `src`.
+/// If the first `limit` bytes of `src` contains a valid varint32,
+/// return a tuple where the first element is the decoded value, and the
+/// second element is the actual number of bytes for the varint32.
+/// Otherwise, if the first `limit` bytes of `src` doesn't contain a valid
+/// varint32, return `None`.
+pub fn decode_varint_32_limit(
+  src: &[u8],
+  limit: usize
+) -> Option<(u32, usize)> {
   assert!(src.len() >= 4);
   let mut shift = 0;
   let mut idx = 0;
   let mut result: u32 = 0;
-  while shift <= 28 {
+  while shift <= 28 && idx < limit {
     let byte = src[idx];
     idx += 1;
     result |= ((byte & 0x7F) as u32) << shift;
     shift += 7;
     if byte & 0x80 == 0 {
-      break;
+      return Some((result, idx))
     }
   }
-  (result, idx)
+  None
 }
 
-/// Decode the first N-bytes of `src` in varint64.
-/// Return a tuple where the first element is the decoded value,
-/// and the second element is N+1.
-pub fn decode_varint_64(src: &[u8]) -> (u64, usize) {
+/// Decode varint64 from `src`.
+/// If `src` begins with a valid varint64, return a tuple
+/// where the first element is the decoded value, and the second element is
+/// the number of bytes for the varint64.
+/// If `src` doesn't contain a valid varint64, return `None`.
+pub fn decode_varint_64(src: &[u8]) -> Option<(u64, usize)> {
+  decode_varint_64_limit(src, src.len())
+}
+
+/// Decode varint64 from the first `limit` bytes of `src`.
+/// If the first `limit` bytes of `src` contains a valid varint64,
+/// return a tuple where the first element is the decoded value, and the
+/// second element is the actual number of bytes for the varint64.
+/// Otherwise, if the first `limit` bytes of `src` doesn't contain a valid
+/// varint64, return `None`.
+pub fn decode_varint_64_limit(
+  src: &[u8],
+  limit: usize
+) -> Option<(u64, usize)> {
   assert!(src.len() >= 8);
   let mut shift = 0;
   let mut idx = 0;
   let mut result: u64 = 0;
-  while shift <= 63 {
+  while shift <= 63 && idx < limit {
     let byte = src[idx];
     idx += 1;
     result |= ((byte & 0x7F) as u64) << shift;
     shift += 7;
     if byte & 0x80 == 0 {
-      break;
+      return Some((result, idx))
     }
   }
-  (result, idx)
+  None
+}
+
+/// Return the length of the varint32 or varint64 encoding of `v`
+pub fn varint_length(mut v: u64) -> usize {
+  let mut len = 1;
+  while v >= 128 {
+    v >>= 7;
+    len += 1;
+  }
+  len
 }
 
 
@@ -208,7 +250,9 @@ mod tests {
     idx = 0;
     for i in 0..32*32 {
       let expected = (i / 32) << (i % 32);
-      let (actual, next_idx) = decode_varint_32(&data[idx..]);
+      let result = decode_varint_32(&data[idx..]);
+      assert!(result.is_some());
+      let (actual, next_idx) = result.unwrap();
       assert_eq!(actual, expected);
       idx += next_idx;
     }
@@ -236,7 +280,9 @@ mod tests {
 
     idx = 0;
     for v in &values {
-      let (actual, offset) = decode_varint_64(&data[idx..]);
+      let result = decode_varint_64(&data[idx..]);
+      assert!(result.is_some());
+      let (actual, offset) = result.unwrap();
       assert_eq!(actual, *v);
       idx += offset;
     }
