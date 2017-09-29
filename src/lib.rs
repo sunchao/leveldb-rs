@@ -22,6 +22,10 @@ extern crate arena;
 extern crate crossbeam;
 
 pub mod util;
+pub mod result;
 pub mod slice;
 pub mod comparator;
+pub mod dbformat;
 pub mod skiplist;
+pub mod iterator;
+pub mod memtable;

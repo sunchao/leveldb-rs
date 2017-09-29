@@ -16,16 +16,21 @@
 // under the License.
 
 use std::{ptr, mem};
+use std::rc::Rc;
+use std::cell::RefCell;
 
 const K_BLOCK_SIZE: usize = 4096;
 
-/// Similar to "Arena" in leveldb C++
-/// Note that this implements "interior mutability", so caller
-/// does not need to hold a unique reference to the struct in order
-/// to call its functions.
-/// Also, functions of this struct return raw pointers. It is the caller's
-/// responsibility to do bound checking, and ensure the returned memory
-/// will not outlive the arena instance.
+pub type ArenaRef = Rc<RefCell<Arena>>;
+
+/// Similar to "Arena" in leveldb C++.
+/// Note that even though methods of this require receiver to be unique self
+/// reference, the returned values are raw pointers, and thus do not "hold" the
+/// self reference. We could change the receiver type to shared reference.
+/// However, it makes the code more complex and may require more `try_borrow`
+/// calls, which carry certain costs.
+/// Therefore, the suggested way is to create `ArenaRef` and use interior
+/// mutability.
 pub struct Arena {
   ptr: *mut u8,
   bytes_remaining: usize,

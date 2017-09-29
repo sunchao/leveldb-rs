@@ -15,78 +15,87 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::{ptr, slice};
 use std::cmp::Ordering;
 use std::ops::Index;
 
-// TODO: find a more space-efficient way to represent this
+use util::bit;
+
+/// Just like Rust's slice, except there's no borrowing.
+/// Instead, the user needs to guarantee that
+/// the instances of this struct should not live longer than
+/// the memory that `data` points to.
+#[derive(Clone)]
 pub struct Slice {
-  data: Vec<u8>,
-  start: usize,
-  len: usize
+  data: *const u8,
+  size: usize
 }
 
 impl Slice {
   /// Create an empty slice
   pub fn new_empty() -> Self {
     Self {
-      data: Vec::new(),
-      start: 0,
-      len: 0
+      data: ptr::null(),
+      size: 0
     }
   }
 
   /// Create a slice that refers to `d`
-  pub fn new(d: &[u8]) -> Self {
-    let len = d.len();
+  pub fn new(data: *const u8, size: usize) -> Self {
     Self {
-      data: Vec::from(d),
-      start: 0,
-      len: len
-    }
-  }
-
-  /// Create a slice that refers to the content of `s`
-  pub fn new_string(s: &str) -> Self {
-    let len = s.len();
-    Self {
-      data: Vec::from(s.as_bytes()),
-      start: 0,
-      len: len
+      data: data,
+      size: size
     }
   }
 
   /// Return the length (in bytes) of the referenced data
+  #[inline]
   pub fn size(&self) -> usize {
-    self.len - self.start
+    self.size
   }
 
-  /// Return a reference to the data
+  /// Return the raw pointer to the internal data
+  #[inline]
+  pub fn raw_data(&self) -> *const u8 {
+    self.data
+  }
+
+  /// Return a slice to the internal data.
+  /// This should be preferred over `raw_data()`.
   #[inline]
   pub fn data(&self) -> &[u8] {
-    &self.data[self.start..]
+    unsafe {
+      slice::from_raw_parts(self.data, self.size)
+    }
   }
 
   /// Return true iff the length of the referenced data is zero
+  #[inline]
   pub fn empty(&self) -> bool {
     self.size() == 0
   }
 
   /// Change this slice to refer to an empty array
+  #[inline]
   pub fn clear(&mut self) {
-    self.data = Vec::new();
-    self.start = 0;
-    self.len = 0;
+    self.data = ptr::null();
+    self.size = 0;
   }
 
   /// Drop the first `n` bytes from this slice
   pub fn remove_prefix(&mut self, n: usize) {
     assert!(n <= self.size());
-    self.start = n;
+    unsafe {
+      self.data = self.data.offset(n as isize);
+    }
+    self.size -= n;
   }
 
   /// Return true iff `x` is a prefix of `self`
   pub fn starts_with(&self, x: &Slice) -> bool {
-    self.size() >= x.size() && &self.data()[..x.size()] == x.data()
+    unsafe {
+      self.size() >= x.size() && bit::memcmp(self.data, x.data, x.size()) == 0
+    }
   }
 
   /// Three-way comparison. Returns value:
@@ -96,7 +105,14 @@ impl Slice {
   #[inline]
   pub fn compare(&self, b: &Slice) -> Ordering {
     let min_len = if self.size() < b.size() { self.size() } else { b.size() };
-    self.data()[..min_len].cmp(&b.data()[..min_len])
+    let r = unsafe { bit::memcmp(self.data, b.data, min_len) };
+    match r {
+      _ if r > 0 => Ordering::Greater,
+      _ if r < 0 => Ordering::Less,
+      0 if self.size > b.size => Ordering::Greater,
+      0 if self.size < b.size => Ordering::Less,
+      _ => Ordering::Equal
+    }
   }
 }
 
@@ -106,6 +122,22 @@ impl Index<usize> for Slice {
   /// Return the ith byte in the referenced data
   /// REQUIRES: index < self.size()
   fn index(&self, index: usize) -> &u8 {
-    &self.data[index + self.start]
+    unsafe {
+      &*self.data.offset(index as isize)
+    }
+  }
+}
+
+impl<'a> From<&'a [u8]> for Slice {
+  #[inline]
+  fn from(s: &'a [u8]) -> Self {
+    Slice::new(s.as_ptr(), s.len())
+  }
+}
+
+impl From<String> for Slice {
+  #[inline]
+  fn from(s: String) -> Self {
+    Slice::new(s.as_ptr(), s.len())
   }
 }

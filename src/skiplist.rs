@@ -17,10 +17,11 @@
 
 use std::{mem, slice, ptr};
 use std::cmp::Ordering;
+use std::rc::Rc;
 use std::cell::RefCell;
 
 use util::atomic::{AtomicPointer, AtomicUsize};
-use util::arena::Arena;
+use util::arena::{Arena, ArenaRef};
 use util::random::Random;
 use super::comparator::Comparator;
 
@@ -49,8 +50,8 @@ use super::comparator::Comparator;
 ///
 // TODO: implement `Send` and `Sync` for this struct?
 pub struct SkipList<K> {
-  cmp: Box<Comparator<K>>,
-  arena: RefCell<Arena>,
+  cmp: Rc<Comparator<K>>,
+  arena: ArenaRef,
   head: *mut Node<K>,
   max_height: AtomicUsize,
   rnd: Random
@@ -59,9 +60,6 @@ pub struct SkipList<K> {
 const MAX_HEIGHT: usize = 12;
 const BRANCHING: u32 = 4; // 25% chance to reach next level
 
-// TODO: `Default` is required here because `head` needs to
-// be initialized with an uninteresting value. How to avoid this?
-//
 // This implementation uses raw pointers for list nodes. This is
 // to avoid perf penalty (potentially by `RefCell` and `Rc`), and
 // the need to allocate nodes from pre-allocated memory
@@ -69,14 +67,15 @@ const BRANCHING: u32 = 4; // 25% chance to reach next level
 // Because of the above, this struct should NEVER leak node pointers,
 // to avoid memory leak.
 //
-impl<K> SkipList<K> where K: Default {
+impl<K> SkipList<K> {
   /// Create a new skiplist that uses `cmp` to compare keys, and
   /// `arena` to allocate memory.
   pub fn new(
-    cmp: Box<Comparator<K>>,
-    arena: RefCell<Arena>,
+    cmp: Rc<Comparator<K>>,
+    arena: ArenaRef,
+    root_key: K
   ) -> Self {
-    let h = Node::new_node(&arena, K::default(), MAX_HEIGHT);
+    let h = Node::new_node(&arena, root_key, MAX_HEIGHT);
     let rnd = Random::new(0xdeadbeef);
     Self {
       cmp: cmp,
@@ -123,6 +122,10 @@ impl<K> SkipList<K> where K: Default {
     } else {
       self.equal(key, Node::get_key(x))
     }
+  }
+
+  pub fn iter(&self) -> SkipListIterator<K> {
+    SkipListIterator::new(self)
   }
 
   /// Generate a random height in the range of `[1, MAX_HEIGHT]`.
@@ -343,12 +346,12 @@ impl<K> Node<K> {
 ///
 /// An iterator on a skiplist with ability to move forward and backward.
 ///
-pub struct SkipListIterator<'a, K> where K: 'a + Default {
+pub struct SkipListIterator<'a, K> where K: 'a {
   list: &'a SkipList<K>,
   node: *const Node<K>
 }
 
-impl<'a, K> SkipListIterator<'a, K> where K: Default {
+impl<'a, K> SkipListIterator<'a, K> {
   #[inline(always)]
   pub fn new(list: &'a SkipList<K>) -> Self {
     Self {
@@ -461,9 +464,9 @@ mod tests {
 
   #[test]
   fn test_empty() {
-    let arena = RefCell::new(Arena::new());
+    let arena = Rc::new(RefCell::new(Arena::new()));
     let cmp = KeyComparator {};
-    let list = SkipList::new(Box::new(cmp), arena);
+    let list = SkipList::new(Rc::new(cmp), arena, 0);
     assert!(!list.contains(&10));
 
     let mut iter = SkipListIterator::new(&list);
@@ -483,8 +486,8 @@ mod tests {
 
     let mut keys: BTreeSet<u64> = BTreeSet::new();
     let cmp = KeyComparator {};
-    let arena = RefCell::new(Arena::new());
-    let list = SkipList::new(Box::new(cmp), arena);
+    let arena = Rc::new(RefCell::new(Arena::new()));
+    let list = SkipList::new(Rc::new(cmp), arena, 0);
     let rnd = Random::new(1000);
 
     for _ in 0..N {
@@ -603,11 +606,11 @@ mod tests {
   unsafe impl Sync for ConcurrencyTester {}
 
   impl ConcurrencyTester {
-    pub fn new(arena: RefCell<Arena>) -> Self {
+    pub fn new(arena: Rc<RefCell<Arena>>) -> Self {
       let cmp = KeyComparator {};
       Self {
         current: State::new(),
-        list: SkipList::new(Box::new(cmp), arena)
+        list: SkipList::new(Rc::new(cmp), arena, 0)
       }
     }
 
@@ -704,7 +707,7 @@ mod tests {
 
   #[test]
   fn test_concurrent_without_threads() {
-    let arena = RefCell::new(Arena::new());
+    let arena = Rc::new(RefCell::new(Arena::new()));
     let tester = ConcurrencyTester::new(arena);
     let rnd = Random::new(SEED);
     for _ in 0..10000 {
@@ -770,7 +773,7 @@ mod tests {
         seed + 1, AtomicBool::new(false),
         (Mutex::new(ReaderState::STARTING), Condvar::new())
       );
-      let arena = RefCell::new(Arena::new());
+      let arena = Rc::new(RefCell::new(Arena::new()));
       let tester = ConcurrencyTester::new(arena);
 
       crossbeam::scope(|scope| {
