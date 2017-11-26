@@ -98,6 +98,13 @@ impl Slice {
     }
   }
 
+  /// Returns a string from the slice data
+  pub fn to_str(&self) -> &str {
+    unsafe {
+      ::std::str::from_utf8_unchecked(self.data())
+    }
+  }
+
   /// Three-way comparison. Returns value:
   ///   `Ordering::Less`    iff `self` < `b`
   ///   `Ordering::Equal`   iff `self` = `b`
@@ -131,6 +138,13 @@ impl Index<usize> for Slice {
 impl<'a> From<&'a [u8]> for Slice {
   #[inline]
   fn from(s: &'a [u8]) -> Self {
+    Slice::new(s.as_ptr(), s.len())
+  }
+}
+
+impl<'a> From<&'a str> for Slice {
+  #[inline]
+  fn from(s: &'a str) -> Self {
     Slice::new(s.as_ptr(), s.len())
   }
 }
