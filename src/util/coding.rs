@@ -18,7 +18,16 @@
 use std::mem::transmute;
 use std::ptr::copy_nonoverlapping;
 
-/// Encode `value` in little-endian and put in the first 4-bytes of `dst`.
+use slice::Slice;
+
+/// --------------------------------------------------------------------------------
+/// Encoding & Decoding which deal with primitive Rust slices
+/// --------------------------------------------------------------------------------
+
+
+/// Encodes `value` in little-endian and puts it in the first 4-bytes of `dst`.
+///
+/// Panics if `dst.len()` is less than 4.
 pub fn encode_fixed_32(dst: &mut [u8], value: u32) {
   assert!(dst.len() >= 4);
   unsafe {
@@ -27,7 +36,9 @@ pub fn encode_fixed_32(dst: &mut [u8], value: u32) {
   }
 }
 
-/// Encode `value` in little-endian and put in the first 8-bytes of `dst`.
+/// Encodes `value` in little-endian and puts in the first 8-bytes of `dst`.
+///
+/// Panics if `dst.len()` is less than 8.
 pub fn encode_fixed_64(dst: &mut [u8], value: u64) {
   assert!(dst.len() >= 8);
   unsafe {
@@ -36,7 +47,9 @@ pub fn encode_fixed_64(dst: &mut [u8], value: u64) {
   }
 }
 
-/// Decode the first 4-bytes of `src` in little-endian and return the result.
+/// Decodes the first 4-bytes of `src` in little-endian and returns the decoded value.
+///
+/// Panics if `src.len()` is less than 4.
 pub fn decode_fixed_32(src: &[u8]) -> u32 {
   assert!(src.len() >= 4);
   let mut data: u32 = 0;
@@ -50,7 +63,9 @@ pub fn decode_fixed_32(src: &[u8]) -> u32 {
   data.to_le()
 }
 
-/// Decode the first 8-bytes of `src` in little-endian and return the result.
+/// Decodes the first 8-bytes of `src` in little-endian and returns the decoded value.
+///
+/// Panics if `src.len()` is less than 8.
 pub fn decode_fixed_64(src: &[u8]) -> u64 {
   assert!(src.len() >= 8);
   let mut data: u64 = 0;
@@ -64,9 +79,10 @@ pub fn decode_fixed_64(src: &[u8]) -> u64 {
   data.to_le()
 }
 
-/// Encode the `value` in varint32 and put it in the first N-bytes of `dst`.
-/// Return N.
-/// This panics if `dst` doesn't have enough space to encode the value.
+/// Encode thes `value` in varint32 and puts it in the first `N`-bytes of `dst`.
+/// Returns N.
+///
+/// Panics if `dst` doesn't have enough space to encode the value.
 pub fn encode_varint_32(dst: &mut [u8], value: u32) -> usize {
   const B: u32 = 0x80;
   let mut idx = 0;
@@ -99,9 +115,10 @@ pub fn encode_varint_32(dst: &mut [u8], value: u32) -> usize {
   idx
 }
 
-/// Encode the `value` in varint64 and put it in the first N-bytes of `dst`.
-/// Return N.
-/// This panics if `dst` doesn't have enough space to encode the value.
+/// Encodes the `value` in varint64 and puts it in the first `N`-bytes of `dst`.
+/// Returns N.
+///
+/// Panics if `dst` doesn't have enough space to encode the value.
 pub fn encode_varint_64(dst: &mut [u8], mut value: u64) -> usize {
   let mut idx = 0;
   while value & 0xFFFFFFFFFFFFFF80 != 0 {
@@ -113,26 +130,23 @@ pub fn encode_varint_64(dst: &mut [u8], mut value: u64) -> usize {
   idx + 1
 }
 
-/// Decode varint32 from `src`.
-/// If `src` begins with a valid varint32, return a tuple
-/// where the first element is the decoded value, and the second element is
-/// the number of bytes for the varint32.
-/// If `src` doesn't contain a valid varint32, return `None`.
+/// Decodes varint32 from `src`, and returns a tuple of which the first element is the
+/// decoded value, and the second element is the number of bytes used to encode the result
+/// value.
+///
+/// If `src` doesn't contain a valid varint32, returns `None`.
 pub fn decode_varint_32(src: &[u8]) -> Option<(u32, usize)> {
   decode_varint_32_limit(src, src.len())
 }
 
-/// Decode varint32 from the first `limit` bytes of `src`.
-/// If the first `limit` bytes of `src` contains a valid varint32,
-/// return a tuple where the first element is the decoded value, and the
-/// second element is the actual number of bytes for the varint32.
-/// Otherwise, if the first `limit` bytes of `src` doesn't contain a valid
-/// varint32, return `None`.
-pub fn decode_varint_32_limit(
-  src: &[u8],
-  limit: usize
-) -> Option<(u32, usize)> {
-  assert!(src.len() >= 4);
+/// Decodes varint32 from the first `limit` bytes of `src`, and returns a tuple of which
+/// the first is the decoded value, and the second element is the number of bytes used to
+/// encode the result value.
+
+/// If `src.len` is less than `limit`, or the first `limit` bytes of `src` doesn't contain
+/// a valid varint32, returns `None`.
+pub fn decode_varint_32_limit(src: &[u8], limit: usize) -> Option<(u32, usize)> {
+  assert!(src.len() >= limit);
   let mut shift = 0;
   let mut idx = 0;
   let mut result: u32 = 0;
@@ -148,26 +162,22 @@ pub fn decode_varint_32_limit(
   None
 }
 
-/// Decode varint64 from `src`.
-/// If `src` begins with a valid varint64, return a tuple
-/// where the first element is the decoded value, and the second element is
-/// the number of bytes for the varint64.
-/// If `src` doesn't contain a valid varint64, return `None`.
+/// Decodes varint64 from `src`, and returns a tuple of which the first is the decoded
+/// value, and the second element is the number of bytes used to encode the result value.
+///
+/// If `src` doesn't contain a valid varint64, returns `None`.
 pub fn decode_varint_64(src: &[u8]) -> Option<(u64, usize)> {
   decode_varint_64_limit(src, src.len())
 }
 
-/// Decode varint64 from the first `limit` bytes of `src`.
-/// If the first `limit` bytes of `src` contains a valid varint64,
-/// return a tuple where the first element is the decoded value, and the
-/// second element is the actual number of bytes for the varint64.
-/// Otherwise, if the first `limit` bytes of `src` doesn't contain a valid
-/// varint64, return `None`.
-pub fn decode_varint_64_limit(
-  src: &[u8],
-  limit: usize
-) -> Option<(u64, usize)> {
-  assert!(src.len() >= 8);
+/// Decodes varint64 from the first `limit` bytes of `src`, and returns a tuple of which
+/// the first is the decoded value, and the second element is the number of bytes used to
+/// encode the result value.
+///
+/// If `src.len` is less than `limit`, or the first `limit` bytes of `src` doesn't contain
+/// a valid varint64, returns `None`.
+pub fn decode_varint_64_limit(src: &[u8], limit: usize) -> Option<(u64, usize)> {
+  assert!(src.len() >= limit);
   let mut shift = 0;
   let mut idx = 0;
   let mut result: u64 = 0;
@@ -183,7 +193,7 @@ pub fn decode_varint_64_limit(
   None
 }
 
-/// Return the length of the varint32 or varint64 encoding of `v`
+/// Returns the length of the varint32 or varint64 encoding of `v`
 pub fn varint_length(mut v: u64) -> usize {
   let mut len = 1;
   while v >= 128 {
@@ -197,6 +207,7 @@ pub fn varint_length(mut v: u64) -> usize {
 #[cfg(test)]
 mod tests {
   use super::*;
+  use util::random::Random;
 
   #[test]
   fn test_fixed_32() {
@@ -211,6 +222,13 @@ mod tests {
       let actual: u32 = decode_fixed_32(&data[i*4..]);
       assert_eq!(actual, i as u32);
     }
+  }
+
+  #[test]
+  #[should_panic]
+  fn test_fixed_32_panic() {
+    let mut data = vec![0; 3];
+    encode_fixed_32(&mut data, 100);
   }
 
   #[test]
@@ -238,6 +256,13 @@ mod tests {
   }
 
   #[test]
+  #[should_panic]
+  fn test_fixed_64_panic() {
+    let mut data = vec![0; 6];
+    encode_fixed_64(&mut data, 100);
+  }
+
+  #[test]
   fn test_varint_32() {
     let mut idx = 0;
     let mut data: Vec<u8> = vec![0; 32 * 32 * 5];
@@ -255,6 +280,28 @@ mod tests {
       let (actual, next_idx) = result.unwrap();
       assert_eq!(actual, expected);
       idx += next_idx;
+    }
+  }
+
+  #[test]
+  #[should_panic]
+  fn test_varint_32_no_space() {
+    let mut data = vec![0; 1];
+    let _ = encode_varint_32(&mut data, 128);
+  }
+
+  #[test]
+  fn test_varint_32_limit() {
+    let mut data = vec![0; 5];
+    for i in 0..32*32 {
+      let v: u32 = (i / 32) << (i % 32);
+      let limit = encode_varint_32(&mut data, v);
+      assert!(limit <= 5);
+      let result = decode_varint_32_limit(&mut data, limit);
+      assert!(result.is_some());
+      let (actual, len) = result.unwrap();
+      assert_eq!(actual, v);
+      assert_eq!(len, limit);
     }
   }
 
@@ -285,6 +332,39 @@ mod tests {
       let (actual, offset) = result.unwrap();
       assert_eq!(actual, *v);
       idx += offset;
+    }
+  }
+
+  #[test]
+  fn test_varint_64_limit() {
+    let mut data = vec![0; 10];
+    for i in 0..64*64 {
+      let v: u64 = (i / 64) << (i % 64);
+      let limit = encode_varint_64(&mut data, v);
+      assert!(limit <= 10);
+      let result = decode_varint_64_limit(&mut data, limit);
+      assert!(result.is_some());
+      let (actual, len) = result.unwrap();
+      assert_eq!(actual, v);
+      assert_eq!(len, limit);
+    }
+  }
+
+  #[test]
+  #[should_panic]
+  fn test_varint_64_no_space() {
+    let mut data = vec![0; 4];
+    let _ = encode_varint_64(&mut data, 2147483648u64);
+  }
+
+  #[test]
+  fn test_varint_length() {
+    let rand = Random::new(0xbaaaaaad);
+    let mut data = vec![0; 5];
+    for _ in 0..1000 {
+      let v = rand.next();
+      let len = encode_varint_32(&mut data, v);
+      assert_eq!(varint_length(v as u64), len);
     }
   }
 }
