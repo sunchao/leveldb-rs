@@ -16,11 +16,13 @@
 // under the License.
 
 use std::cmp::Ordering;
+use std::convert::TryFrom;
 use std::rc::Rc;
 
 use slice::Slice;
 use util::{coding, bit};
 use comparator::Comparator;
+use result::{Result, Error, ErrorType};
 
 pub type SequenceNumber = u64;
 
@@ -98,10 +100,12 @@ impl LookupKey {
     }
   }
 
+  /// Returns the whole key
   pub fn memtable_key(&self) -> Slice {
     Slice::new(self.data, self.size)
   }
 
+  /// Returns the `user_key` and `tag` part
   pub fn internal_key(&self) -> Slice {
     unsafe {
       Slice::new(self.data.offset(self.kstart as isize),
@@ -109,11 +113,11 @@ impl LookupKey {
     }
   }
 
+  /// Returns the `user_key` part
   pub fn user_key(&self) -> Slice {
     unsafe {
       Slice::new(self.data.offset(self.kstart as isize),
                  self.size - self.kstart - 8)
-
     }
   }
 }
@@ -170,4 +174,40 @@ impl Comparator<Slice> for InternalKeyComparator {
 fn extract_user_key(internal_key: &Slice) -> Slice {
   assert!(internal_key.size() >= 8);
   Slice::new(internal_key.raw_data(), internal_key.size() - 8)
+}
+
+
+pub struct ParsedInternalKey {
+  pub user_key: Slice,
+  pub seqno: SequenceNumber,
+  pub value_type: ValueType
+}
+
+impl ParsedInternalKey {
+  pub fn new(user_key: Slice, seqno: SequenceNumber, value_type: ValueType) -> Self {
+    Self {
+      user_key: user_key,
+      seqno: seqno,
+      value_type: value_type
+    }
+  }
+
+  pub fn encoding_length(&self) -> usize {
+    self.user_key.size() + 8
+  }
+}
+
+impl<'a> TryFrom<&'a Slice> for ParsedInternalKey {
+  type Error = super::result::Error;
+
+  fn try_from(s: &Slice) -> Result<ParsedInternalKey> {
+    let n = s.size();
+    if n < 8 {
+      return LEVELDB_ERR!(Corruption);
+    }
+    let num = coding::decode_fixed_64(&s.data()[n-8..]);
+    let c: u8 = (num & 0xff) as u8;
+    Ok(ParsedInternalKey::new(
+      Slice::new(s.raw_data(), n - 8), num >> 8, ValueType::from(c)))
+  }
 }

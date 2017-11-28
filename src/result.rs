@@ -15,10 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::convert::From;
-
 #[derive(Debug)]
-pub enum ErrorKind {
+pub enum ErrorType {
   NotFound,
   Corruption,
   NotSupported,
@@ -26,41 +24,49 @@ pub enum ErrorKind {
   IOError
 }
 
-impl ErrorKind {
+impl ErrorType {
   pub fn as_str(&self) -> &'static str {
     match *self {
-      ErrorKind::NotFound => "not found",
-      ErrorKind::Corruption => "corruption",
-      ErrorKind::NotSupported => "not supported",
-      ErrorKind::InvalidArgument => "invalid argument",
-      ErrorKind::IOError => "IO error"
+      ErrorType::NotFound => "NotFoundError",
+      ErrorType::Corruption => "CorruptionError",
+      ErrorType::NotSupported => "NotSupportedError",
+      ErrorType::InvalidArgument => "InvalidArgumentError",
+      ErrorType::IOError => "IOError",
     }
   }
 }
 
 #[derive(Debug)]
 pub struct Error {
-  kind: ErrorKind
+  ty: ErrorType,
+  msg: &'static str
 }
 
-impl From<ErrorKind> for Error {
-  fn from(k: ErrorKind) -> Error {
-    Error {
-      kind: k
-    }
+impl Error {
+  pub fn new(ty: ErrorType, msg: &'static str) -> Error {
+    Error { ty: ty, msg: msg }
   }
 }
 
 impl ::std::fmt::Display for Error {
   fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
-    write!(f, "LevelDB Error: {}", self.kind.as_str())
+    if self.msg.is_empty() {
+      write!(f, "LevelDB {}", self.ty.as_str())
+    } else {
+      write!(f, "LevelDB {}: {}", self.ty.as_str(), self.msg)
+    }
   }
 }
 
 impl ::std::error::Error for Error {
   fn description(&self) -> &str {
-    self.kind.as_str()
+    self.msg
   }
 }
 
 pub type Result<T> = ::std::result::Result<T, Error>;
+
+macro_rules! LEVELDB_ERR {
+  ($tp:tt) => (Err(Error::new(ErrorType::$tp, "")));
+  ($tp:tt, $msg:expr) => (Err(Error::new(ErrorType::$tp, $msg)));
+}

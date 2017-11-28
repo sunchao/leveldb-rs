@@ -25,7 +25,7 @@ use dbformat::{SequenceNumber, ValueType, LookupKey, InternalKeyComparator};
 use slice::Slice;
 use util::arena::{Arena, ArenaRef};
 use util::{coding, bit};
-use result::{Result, Error, ErrorKind};
+use result::{Result, Error, ErrorType};
 use iterator::Iterator;
 
 type Table = SkipList<Slice>;
@@ -90,17 +90,17 @@ impl MemTable {
     let internal_key_size = key_size + 8;
     let encoded_len = coding::varint_length(internal_key_size as u64)
       + internal_key_size + coding::varint_length(val_size as u64) + val_size;
-    let mut arena = self.arena.borrow_mut();
     let mut buf = unsafe {
+      let mut arena = self.arena.borrow_mut();
       slice::from_raw_parts_mut(arena.alloc(encoded_len), encoded_len)
     };
-    let mut offset = coding::encode_varint_32(
-      &mut buf, internal_key_size as u32);
+    let mut offset = coding::encode_varint_32(&mut buf, internal_key_size as u32);
     bit::memcpy(&mut buf[offset..], key.data());
     offset += key_size;
     coding::encode_fixed_64(&mut buf[offset..], (seq << 8) | val_ty as u64);
     offset += 8;
-    offset += coding::encode_varint_32(&mut buf[offset..], val_size as u32);
+    let val_encoded_len = coding::encode_varint_32(&mut buf[offset..], val_size as u32);
+    offset += val_encoded_len;
     bit::memcpy(&mut buf[offset..], val.data());
     assert!(offset + val_size == encoded_len);
     self.table.insert(Slice::new(buf.as_ptr(), encoded_len));
@@ -137,7 +137,7 @@ impl MemTable {
             return Some(Ok(get_string_from_slice(&v)))
           },
           ValueType::DELETION => {
-            return Some(Err(Error::from(ErrorKind::NotFound)))
+            return Some(LEVELDB_ERR!(NotFound))
           }
         }
       }
@@ -159,12 +159,20 @@ impl<'a> Iterator for MemTableIterator<'a> {
   fn next(&mut self) { self.internal_iter.next(); }
   fn prev(&mut self) { self.internal_iter.prev(); }
   fn key(&self) -> Slice {
-    get_length_prefixed_slice(self.internal_iter.key().data())
+    let mut s = self.internal_iter.key().clone();
+    if let Some(key_slice) = coding::decode_length_prefixed_slice(&mut s) {
+      return key_slice
+    }
+    Slice::new_empty()
   }
   fn value(&self) -> Slice {
-    let kv_slice = self.internal_iter.key().data();
-    let key_slice = get_length_prefixed_slice(kv_slice);
-    get_length_prefixed_slice(&kv_slice[key_slice.size()..])
+    let mut s = self.internal_iter.key().clone();
+    if let Some(_) = coding::decode_length_prefixed_slice(&mut s) {
+      if let Some(val_slice) = coding::decode_length_prefixed_slice(&mut s) {
+        return val_slice
+      }
+    }
+    Slice::new_empty()
   }
 }
 

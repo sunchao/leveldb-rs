@@ -296,7 +296,7 @@ impl<K> Node<K> {
     let mut arena = arena_ref.try_borrow_mut()
       .expect("Arena should not have been borrowed");
     let ptr = arena.alloc_aligned(size);
-    let mut mem = unsafe { slice::from_raw_parts_mut(ptr, size) };
+    let mem = unsafe { slice::from_raw_parts_mut(ptr, size) };
     let (left, right) = mem.split_at_mut(mem::size_of::<Node<K>>());
     let node = left.as_mut_ptr() as *mut Node<K>;
     let values = unsafe {

@@ -17,6 +17,8 @@
 
 use std::cmp::Ordering;
 
+use slice::Slice;
+
 /// A comparator for type `T`.
 pub trait Comparator<T> {
   /// Three-way comparison. Returns value:
@@ -36,4 +38,22 @@ pub trait Comparator<T> {
   // Names starting with "leveldb." are reserved and should not be used
   // by any clients of this package.
   fn name(&self) -> &str;
+}
+
+pub type SliceComparator = Comparator<Slice>;
+
+
+// TODO: add singleton pattern for BytewiseComparator
+
+pub struct BytewiseComparator {
+}
+
+impl Comparator<Slice> for BytewiseComparator {
+  fn compare(&self, a: &Slice, b: &Slice) -> Ordering {
+    a.compare(b)
+  }
+
+  fn name(&self) -> &str {
+    "leveldb.BytewiseComparator"
+  }
 }

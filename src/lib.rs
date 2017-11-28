@@ -17,11 +17,13 @@
 
 #![feature(compiler_fences)]
 #![feature(rustc_private)]
+#![feature(try_from)]
 
 extern crate arena;
 extern crate crossbeam;
 
 pub mod util;
+#[macro_use]
 pub mod result;
 pub mod slice;
 pub mod comparator;
@@ -29,3 +31,4 @@ pub mod dbformat;
 pub mod skiplist;
 pub mod iterator;
 pub mod memtable;
+pub mod write_batch;
