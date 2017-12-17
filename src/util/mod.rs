@@ -21,3 +21,4 @@ pub mod coding;
 pub mod hash;
 pub mod random;
 pub mod bit;
+pub mod crc32c;

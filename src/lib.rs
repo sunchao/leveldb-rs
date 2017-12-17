@@ -18,9 +18,14 @@
 #![feature(compiler_fences)]
 #![feature(rustc_private)]
 #![feature(try_from)]
+#![feature(cfg_target_feature)]
 
 extern crate arena;
 extern crate crossbeam;
+extern crate x86intrin;
+#[macro_use]
+extern crate lazy_static;
+extern crate byteorder;
 
 pub mod util;
 #[macro_use]
