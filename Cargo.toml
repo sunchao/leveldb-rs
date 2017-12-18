@@ -5,3 +5,9 @@ authors = ["Chao Sun <sunchao@apache.org>"]
 
 [dependencies]
 crossbeam = "0.3.0" # for scoped threads
+x86intrin = "0.4.3" # for HW features such as SSE 4.2
+lazy_static = "0.2" # for initializing static vars
+byteorder = "1"     # for reinterpreting bytes
+
+[dev-dependencies]
+rand = "0.3"
