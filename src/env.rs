@@ -15,30 +15,28 @@
 // specific language governing permissions and limitations
 // under the License.
 
-#![feature(compiler_fences)]
-#![feature(rustc_private)]
-#![feature(try_from)]
-#![feature(cfg_target_feature)]
-#![feature(nll)]
+use std::rc::Rc;
+use std::cell::RefCell;
 
-extern crate arena;
-extern crate crossbeam;
-extern crate x86intrin;
-#[macro_use]
-extern crate lazy_static;
-extern crate byteorder;
+use slice::Slice;
+use result::Result;
 
-pub mod util;
-pub mod env;
-#[macro_use]
-pub mod result;
-pub mod slice;
-pub mod comparator;
-pub mod dbformat;
-pub mod skiplist;
-pub mod iterator;
-pub mod memtable;
-pub mod write_batch;
-pub mod log_format;
-pub mod log_writer;
-pub mod log_reader;
+pub trait WritableFile {
+  fn append(&mut self, data: &Slice) -> Result<()>;
+  fn close(&mut self) -> Result<()>;
+  fn flush(&mut self) -> Result<()>;
+  fn sync(&mut self) -> Result<()>;
+}
+
+pub type SequentialFileRef = Rc<RefCell<SequentialFile>>;
+
+pub trait SequentialFile {
+  /// Read up to `n` bytes from the file, and store them in `scratch`.
+  ///
+  /// Return a slice points to the data in `scratch`, whose lifetime must
+  /// be longer than the slice.
+  fn read(&mut self, n: u64, scratch: &mut [u8]) -> Result<Slice>;
+
+  /// Skip `n` bytes from the file.
+  fn skip(&mut self, n: u64) -> Result<()>;
+}
