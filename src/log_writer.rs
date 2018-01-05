@@ -38,18 +38,15 @@ pub struct Writer {
 }
 
 impl Writer {
+  /// Create a writer that will append data to `dest`.
+  /// `dest` must be initially empty.
   pub fn new(dest: Box<WritableFile>) -> Self {
-    let mut type_crc = [0; (MAX_RECORD_TYPE+1) as usize];
-    Writer::init_type_crc(&mut type_crc);
-    Self {
-      dest: dest,
-      block_offset: 0,
-      type_crc: type_crc
-    }
+    Self::new_with_dest_length(dest, 0)
   }
 
+  /// Create a writer that will append data to `dest`.
+  /// `dest` must have initial length `dest_length`.
   pub fn new_with_dest_length(dest: Box<WritableFile>, dest_length: usize) -> Self {
-    // TODO: remove the shared code
     let mut type_crc = [0; (MAX_RECORD_TYPE+1) as usize];
     Writer::init_type_crc(&mut type_crc);
     Self {
@@ -57,6 +54,12 @@ impl Writer {
       block_offset: dest_length % BLOCK_SIZE as usize,
       type_crc: type_crc
     }
+  }
+
+  /// Consume this Writer and returns a tuple containing the current `block_offset` and
+  /// the written file.
+  pub fn consume(self) -> (usize, Box<WritableFile>) {
+    (self.block_offset, self.dest)
   }
 
   pub fn add_record(&mut self, slice: &Slice) -> Result<()> {
@@ -151,14 +154,12 @@ mod tests {
   use util::coding::encode_fixed_32;
   use util::crc32c;
 
-  type ByteVecRef = Rc<RefCell<Vec<u8>>>;
-
   struct StringDest {
-    contents: ByteVecRef
+    contents: Rc<RefCell<Vec<u8>>>
   }
 
   impl StringDest {
-    pub fn new(c: ByteVecRef) -> Self {
+    pub fn new(c: Rc<RefCell<Vec<u8>>>) -> Self {
       Self {
         contents: c
       }
@@ -262,7 +263,7 @@ mod tests {
   ];
 
   struct LogTest {
-    vec: ByteVecRef,
+    vec: Rc<RefCell<Vec<u8>>>,
     dest: StringDest,
     source: Rc<RefCell<StringSource>>,
     reporter: Rc<RefCell<ReportCollector>>,

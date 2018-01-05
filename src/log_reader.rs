@@ -29,13 +29,13 @@ pub const EOF: i32 = MAX_RECORD_TYPE + 1;
 
 /// Returned whenever we find an invalid physical record.
 /// There are 3 cases:
-///   - the record has an invalid CRC (`ReadPhysicalRecord` reports a drop)
+///   - the record has an invalid CRC (`read_physical_record()` reports a drop)
 ///   - the record is a 0-length record (no drop is reported)
 ///   - the record is below constructor's `initial_offset` (no drop is reported)
 pub const BAD_RECORD: i32 = MAX_RECORD_TYPE + 2;
 
 pub trait Reporter {
-  /// Some corruption was detected. `size` is the approximate number of bytes dropped
+  /// Some corruption was detected. `bytes` is the approximate number of bytes dropped
   /// due to the corruption.
   /// Note: `reason` is a result of `()` here since we only care about the `Err` case.
   fn corruption(&mut self, bytes: usize, reason: Result<()>);
@@ -49,7 +49,7 @@ pub struct Reader {
   buffer: Slice,
   eof: bool,
 
-  // Offset of the last record returned by `ReadRecord`
+  // Offset of the last record returned by `read_record()`
   last_record_offset: u64,
 
   // Offset of the first location past the end of `buffer`
@@ -65,6 +65,13 @@ pub struct Reader {
 }
 
 impl Reader {
+  /// Create a reader that will return log records from `file`.
+  ///
+  /// If `reporter` is not `None`, it is notified whenever some data is dropped to a
+  /// detected corruption.
+  /// If `checksum` is true, verify checksums if available.
+  /// The Reader will start reading at the first record located at physical
+  /// location >= `initial_offset` within the file.
   pub fn new(
     file: SequentialFileRef,
     reporter: Option<Rc<RefCell<Reporter>>>,
@@ -85,6 +92,9 @@ impl Reader {
     }
   }
 
+  /// Returns the physical offset of the last record returned by `read_record()`
+  ///
+  /// The result is undefined before the first call to `read_record()`.
   pub fn last_record_offset(&self) -> u64 {
     self.last_record_offset
   }
@@ -102,7 +112,11 @@ impl Reader {
     self.report_drop(bytes, LEVELDB_ERR!(Corruption, reason))
   }
 
-  // TODO: add doc
+  /// Read the next record and potentially returns a slice for it.
+  ///
+  /// This returns `Some(slice)` if the read is successful, `None` if it hit the end of
+  /// the input. The contents is read into `scratch`, whose lifetime must be longer than
+  /// the returned slice.
   pub fn read_record(&mut self, scratch: &mut Vec<u8>) -> Option<Slice> {
     if self.last_record_offset < self.initial_offset {
       if !self.skip_to_initial_block() {
@@ -239,6 +253,10 @@ impl Reader {
     }
   }
 
+  /// Read the next physical record and return a tuple where the first element is the
+  /// integer representation of the record type, and the second element is an option
+  /// containing the slice. The latter is only `Some` iff the record type is valid
+  /// (e.g., NOT `EOF` or `BAD_RECORD`)
   fn read_physical_record(&mut self) -> (i32, Option<Slice>) {
     loop {
       if self.buffer.size() < HEADER_SIZE {

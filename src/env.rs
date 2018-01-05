@@ -18,9 +18,12 @@
 use std::rc::Rc;
 use std::cell::RefCell;
 
-use slice::Slice;
 use result::Result;
+use slice::Slice;
 
+/// A file abstraction for sequential writing.
+/// The implementation must provide buffering since callers may append small fragments
+/// at a time to the file.
 pub trait WritableFile {
   fn append(&mut self, data: &Slice) -> Result<()>;
   fn close(&mut self) -> Result<()>;
@@ -28,8 +31,7 @@ pub trait WritableFile {
   fn sync(&mut self) -> Result<()>;
 }
 
-pub type SequentialFileRef = Rc<RefCell<SequentialFile>>;
-
+/// A file abstraction for reading sequentially through a file.
 pub trait SequentialFile {
   /// Read up to `n` bytes from the file, and store them in `scratch`.
   ///
@@ -40,3 +42,5 @@ pub trait SequentialFile {
   /// Skip `n` bytes from the file.
   fn skip(&mut self, n: u64) -> Result<()>;
 }
+
+pub type SequentialFileRef = Rc<RefCell<SequentialFile>>;

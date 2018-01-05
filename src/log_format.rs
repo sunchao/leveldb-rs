@@ -30,8 +30,8 @@ pub enum RecordType {
 
 impl TryFrom<i32> for RecordType {
   type Error = Error;
-  fn try_from(i: i32) -> Result<Self> {
-    match i {
+  fn try_from(t: i32) -> Result<Self> {
+    match t {
       0 => Ok(RecordType::ZERO),
       1 => Ok(RecordType::FULL),
       2 => Ok(RecordType::FIRST),
@@ -57,7 +57,6 @@ impl ::std::fmt::Display for RecordType {
       };
     write!(f, "{}", str)
   }
-
 }
 
 pub const MAX_RECORD_TYPE: i32 = RecordType::LAST as i32;
