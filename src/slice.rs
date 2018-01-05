@@ -98,11 +98,14 @@ impl Slice {
     }
   }
 
-  /// Returns a string from the slice data
-  pub fn to_str(&self) -> &str {
-    unsafe {
-      ::std::str::from_utf8_unchecked(self.data())
-    }
+  /// Returns a string from the slice data. Copying the contents.
+  pub fn as_str(&self) -> &str {
+    unsafe { ::std::str::from_utf8_unchecked(self.data()) }
+  }
+
+  /// Returns a string from the slice data. Copying the contents.
+  pub fn to_string(&self) -> String {
+    self.as_str().to_string()
   }
 
   /// Three-way comparison. Returns value:

@@ -222,14 +222,14 @@ mod tests {
       match ikey.value_type {
         ValueType::VALUE => {
           state.push_str("Put(");
-          state.push_str(ikey.user_key.to_str());
+          state.push_str(ikey.user_key.as_str());
           state.push_str(", ");
-          state.push_str(iter.value().to_str());
+          state.push_str(iter.value().as_str());
           state.push_str(")");
         },
         ValueType::DELETION => {
           state.push_str("Delete(");
-          state.push_str(ikey.user_key.to_str());
+          state.push_str(ikey.user_key.as_str());
           state.push_str(")");
         }
       }

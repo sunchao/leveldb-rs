@@ -19,6 +19,7 @@
 #![feature(rustc_private)]
 #![feature(try_from)]
 #![feature(cfg_target_feature)]
+#![feature(nll)]
 
 extern crate arena;
 extern crate crossbeam;
@@ -28,6 +29,7 @@ extern crate lazy_static;
 extern crate byteorder;
 
 pub mod util;
+pub mod env;
 #[macro_use]
 pub mod result;
 pub mod slice;
@@ -37,3 +39,6 @@ pub mod skiplist;
 pub mod iterator;
 pub mod memtable;
 pub mod write_batch;
+pub mod log_format;
+pub mod log_writer;
+pub mod log_reader;

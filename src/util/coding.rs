@@ -452,11 +452,11 @@ mod tests {
     let mut input = Slice::from(&v[..]);
     let mut v;
     v = decode_length_prefixed_slice(&mut input).expect("shouldn't be None");
-    assert_eq!(v.to_str(), "");
+    assert_eq!(v.as_str(), "");
     v = decode_length_prefixed_slice(&mut input).expect("shouldn't be None");
-    assert_eq!(v.to_str(), "hello");
+    assert_eq!(v.as_str(), "hello");
     v = decode_length_prefixed_slice(&mut input).expect("shouldn't be None");
-    assert_eq!(v.to_str(), "world");
+    assert_eq!(v.as_str(), "world");
 
     assert_eq!(input.size(), 0);
   }
