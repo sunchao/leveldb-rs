@@ -16,7 +16,12 @@
 // under the License.
 
 
+/// A DB is a persistent ordered map from keys to values.
+/// A DB is safe for concurrent accesses from multiple threads without any external
+/// synchronization.
 pub trait DB {
+  /// Open the database with the specified `name`.
+  /// TODO: add Options and other parameters.
   fn open(name: &str) -> Self;
 
   /// Set the database entry for `key` to `value`.
@@ -30,6 +35,11 @@ pub trait DB {
   /// the database.
   /// TODO: add WriteOptions as parameter
   fn delete(key: &Slice) -> Result<()>;
+
+  /// Apply the specified updates to the database.
+  /// Returns OK on success, and Err on error.
+  /// TODO: add WriteOptions as parameter
+  fn write(updates: &WriteBatch) -> Result<()>;
 
   /// If the database contains an entry for `key`, return OK with the corresponding
   /// value. If there's no entry for `key`, return `Err::IsNotFound`.
