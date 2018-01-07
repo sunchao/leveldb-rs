@@ -288,6 +288,25 @@ mod tests {
   }
 
   #[test]
+  fn lookup_key() {
+    let short_key = Slice::from("hello");
+    let mut key = LookupKey::new(&short_key, 0);
+    let mut v = [0; 4];
+    let len = coding::encode_varint_32(&mut v, short_key.size() as u32);
+    assert_eq!(len, key.kstart);
+    assert_eq!(
+      short_key,
+      Slice::new(unsafe { key.data.offset(len as isize) }, short_key.size()));
+    assert_eq!(len + short_key.size() + 8, key.size);
+    assert_eq!(None, key._vec);
+
+    let v = (0..256).map(|_| 'a' as u8).collect::<Vec<u8>>();
+    let long_key = Slice::from(&v[..]);
+    key = LookupKey::new(&long_key, 1);
+    assert!(key._vec.is_some());
+  }
+
+  #[test]
   fn internal_key_encode_decode() {
     let keys = ["", "k", "hello", "longggggggggggggggggggggg"];
     let seq = [
