@@ -280,12 +280,10 @@ mod tests {
   fn test_key(key: &'static str, seq: u64, vt: ValueType) {
     let encoded = ikey(key, seq, vt);
     let input = Slice::from(&encoded[..]);
-    // let decoded = ParsedInternalKey::new(Slice::from(""), 0, ValueType::VALUE);
     let decoded = ParsedInternalKey::try_from(&input).expect("try_from() should be OK");
     assert_eq!(key, decoded.user_key.as_str());
     assert_eq!(seq, decoded.seqno);
     assert_eq!(vt, decoded.value_type);
-
     assert!(ParsedInternalKey::try_from(&Slice::from("bar")).is_err());
   }
 
