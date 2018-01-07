@@ -21,11 +21,10 @@ use std::ops::Index;
 
 use util::bit;
 
-/// Just like Rust's slice, except there's no borrowing.
-/// Instead, the user needs to guarantee that
-/// the instances of this struct should not live longer than
-/// the memory that `data` points to.
-#[derive(Clone)]
+/// Just like Rust's slice, except there's no borrowing. Instead, the user needs to
+/// guarantee that the instances of this struct should not live longer than the memory
+/// that `data` points to.
+#[derive(Clone, Debug)]
 pub struct Slice {
   data: *const u8,
   size: usize
@@ -34,10 +33,7 @@ pub struct Slice {
 impl Slice {
   /// Create an empty slice
   pub fn new_empty() -> Self {
-    Self {
-      data: ptr::null(),
-      size: 0
-    }
+    Self::new(ptr::null(), 0)
   }
 
   /// Create a slice that refers to `d`
@@ -158,3 +154,11 @@ impl From<String> for Slice {
     Slice::new(s.as_ptr(), s.len())
   }
 }
+
+impl PartialEq for Slice {
+  fn eq(&self, other: &Slice) -> bool {
+    self.compare(other) == Ordering::Equal
+  }
+}
+
+impl Eq for Slice { }
