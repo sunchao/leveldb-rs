@@ -115,6 +115,19 @@ pub fn encode_varint_32(dst: &mut [u8], value: u32) -> usize {
   idx
 }
 
+/// Encode thes `value` in varint32 and append it to the last `N`-bytes of `dst`.
+/// Returns N.
+/// Note this will increase the capacity of `dst` if there's not enough space.
+pub fn encode_varint_32_vec(dst: &mut Vec<u8>, value: u32) -> usize {
+  let enc_len = varint_length(value as u64);
+  let old_len = dst.len();
+  unsafe {
+    dst.reserve(enc_len);
+    dst.set_len(old_len + enc_len);
+  }
+  encode_varint_32(&mut dst[old_len..], value)
+}
+
 /// Encodes the `value` in varint64 and puts it in the first `N`-bytes of `dst`.
 /// Returns N.
 ///
@@ -128,6 +141,19 @@ pub fn encode_varint_64(dst: &mut [u8], mut value: u64) -> usize {
   }
   dst[idx] = (value & 0x7F) as u8;
   idx + 1
+}
+
+/// Encode thes `value` in varint64 and append it to the last `N`-bytes of `dst`.
+/// Returns N.
+/// Note this will increase the capacity of `dst` if there's not enough space.
+pub fn encode_varint_64_vec(dst: &mut Vec<u8>, value: u64) -> usize {
+  let enc_len = varint_length(value);
+  let old_len = dst.len();
+  unsafe {
+    dst.reserve(enc_len);
+    dst.set_len(old_len + enc_len);
+  }
+  encode_varint_64(&mut dst[old_len..], value)
 }
 
 /// Decodes varint32 from `src`, and returns a tuple of which the first element is the
@@ -408,6 +434,34 @@ mod tests {
   fn varint_64_no_space() {
     let mut data = vec![0; 4];
     let _ = encode_varint_64(&mut data, 2147483648u64);
+  }
+
+  #[test]
+  fn varint_32_vec() {
+    let rnd = Random::new(301);
+    let mut data = Vec::new();
+    let mut total_size = 0;
+    for _ in 0..100 {
+      let n = rnd.next();
+      let size = encode_varint_32_vec(&mut data, n);
+      let (a, b) = decode_varint_32(&data[total_size..total_size+size])
+        .expect("decode_varint_32() should be OK");
+      assert_eq!(n, a);
+      assert_eq!(size, b);
+      total_size += size;
+    }
+    assert_eq!(total_size, data.len());
+  }
+
+  #[test]
+  fn varint_64_vec() {
+    let mut data = Vec::new();
+    let size = encode_varint_64_vec(&mut data, !0u64-1);
+    let (a, b) = decode_varint_64(&data[0..size])
+      .expect("decode_varint_64() should be OK");
+    assert_eq!(data.len(), size);
+    assert_eq!(!0u64-1, a);
+    assert_eq!(size, b);
   }
 
   #[test]
