@@ -16,6 +16,7 @@
 // under the License.
 
 use std::rc::Rc;
+use std::convert::TryFrom;
 
 use util::coding;
 use slice::Slice;
@@ -101,7 +102,7 @@ impl WriteBatch {
       found += 1;
       let tag: u8 = input[0];
       input.remove_prefix(1);
-      match ValueType::from(tag) {
+      match ValueType::try_from(tag).expect("invalid tag") {
         ValueType::VALUE => {
           let key = coding::decode_length_prefixed_slice(&mut input);
           let value = coding::decode_length_prefixed_slice(&mut input);

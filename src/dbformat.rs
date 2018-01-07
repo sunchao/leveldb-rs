@@ -29,18 +29,19 @@ pub type SequenceNumber = u64;
 /// The last eight bits are reserved for value type.
 pub const MAX_SEQUENCE_NUMBER: u64 = (0x1u64 << 56) - 1;
 
-#[derive(PartialEq, PartialOrd)]
+#[derive(Clone, Copy, PartialEq, PartialOrd, Debug)]
 pub enum ValueType {
   DELETION = 0x0,
   VALUE = 0x1
 }
 
-impl From<u8> for ValueType {
-  fn from(v: u8) -> ValueType {
+impl TryFrom<u8> for ValueType {
+  type Error = super::result::Error;
+  fn try_from(v: u8) -> Result<ValueType> {
     match v {
-      0x00 => ValueType::DELETION,
-      0x01 => ValueType::VALUE,
-      _ => panic!("Undefined value for ValueType: {}", v)
+      0x00 => Ok(ValueType::DELETION),
+      0x01 => Ok(ValueType::VALUE),
+      _ => LEVELDB_ERR!(InvalidArgument, "undefined value for ValueType")
     }
   }
 }
@@ -53,7 +54,6 @@ impl From<u8> for ValueType {
 // `ValueType`, not the lowest).
 pub const VALUE_TYPE_FOR_SEEK: ValueType = ValueType::VALUE;
 
-#[allow(dead_code)]
 pub struct LookupKey {
   // Layout:
   //    key_length  varint32                     <- data
@@ -66,8 +66,8 @@ pub struct LookupKey {
 
   // These two fields are never used: they are here to keep the
   // `data` pointer alive.
-  space: [u8; 200], // for short keys - allocated on stack.
-  vec: Option<Vec<u8>> // keep heap allocated memory alive.
+  _space: [u8; 200], // for short keys - allocated on stack.
+  _vec: Option<Vec<u8>> // keep heap allocated memory alive.
 }
 
 impl LookupKey {
@@ -95,8 +95,8 @@ impl LookupKey {
       data: ptr,
       kstart: kstart,
       size: offset,
-      space: space,
-      vec: vec
+      _space: space,
+      _vec: vec
     }
   }
 
@@ -143,6 +143,10 @@ impl InternalKeyComparator {
     }
   }
 
+  pub fn compare_key(&self, a: &InternalKey, b: &InternalKey) -> Ordering {
+    self.compare(&a.encode(), &b.encode())
+  }
+
   pub fn user_comparator(&self) -> &Rc<Comparator<Slice>> {
     &self.user_comparator
   }
@@ -169,6 +173,55 @@ impl Comparator<Slice> for InternalKeyComparator {
   fn name(&self) -> &str {
     "leveldb.InternalKeyComparator"
   }
+}
+
+pub struct InternalKey {
+  rep: Vec<u8>
+}
+
+impl InternalKey {
+  pub fn new(user_key: Slice, s: SequenceNumber, t: ValueType) -> Self {
+    let mut v = Vec::new();
+    let k = ParsedInternalKey::new(user_key, s, t);
+    append_internal_key(&mut v, &k);
+    Self {
+      rep: v
+    }
+  }
+
+  pub fn encode(&self) -> Slice {
+    Slice::from(&self.rep[..])
+  }
+
+  pub fn decode_from(&mut self, s: &Slice) {
+    self.rep.clear();
+    self.rep.extend_from_slice(&s.data());
+  }
+
+  pub fn user_key(&self) -> Slice {
+    let s = Slice::from(&self.rep[..]);
+    extract_user_key(&s)
+  }
+
+  pub fn set_from(&mut self, p: &ParsedInternalKey) {
+    self.rep.clear();
+    append_internal_key(&mut self.rep, p);
+  }
+
+  pub fn clear(&mut self) {
+    self.rep.clear();
+  }
+}
+
+fn append_internal_key(result: &mut Vec<u8>, key: &ParsedInternalKey) {
+  result.extend_from_slice(&key.user_key.data());
+  let key_len = result.len();
+  unsafe {
+    result.reserve(8);
+    result.set_len(key_len + 8);
+  }
+  coding::encode_fixed_64(
+    &mut result[key_len..], pack_sequence_and_type(key.seqno, key.value_type));
 }
 
 fn extract_user_key(internal_key: &Slice) -> Slice {
@@ -200,14 +253,56 @@ impl ParsedInternalKey {
 impl<'a> TryFrom<&'a Slice> for ParsedInternalKey {
   type Error = super::result::Error;
 
+  /// Attempt to parse an internal key from `internal_key`. On success, return `Some`
+  /// with the parsed data. Otherwise, return `None`.
   fn try_from(s: &Slice) -> Result<ParsedInternalKey> {
     let n = s.size();
     if n < 8 {
-      return LEVELDB_ERR!(Corruption);
+      return LEVELDB_ERR!(InvalidArgument, "Invalid Slice size");
     }
     let num = coding::decode_fixed_64(&s.data()[n-8..]);
-    let c: u8 = (num & 0xff) as u8;
-    Ok(ParsedInternalKey::new(
-      Slice::new(s.raw_data(), n - 8), num >> 8, ValueType::from(c)))
+    let vt = ValueType::try_from((num & 0xff) as u8)?;
+    Ok(ParsedInternalKey::new(Slice::new(s.raw_data(), n - 8), num >> 8, vt))
+  }
+}
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+
+  fn ikey(user_key: &'static str, seq: u64, vt: ValueType) -> Vec<u8> {
+    let mut encoded = Vec::new();
+    let parsed_key = ParsedInternalKey::new(Slice::from(user_key), seq, vt);
+    append_internal_key(&mut encoded, &parsed_key);
+    encoded
+  }
+
+  fn test_key(key: &'static str, seq: u64, vt: ValueType) {
+    let encoded = ikey(key, seq, vt);
+    let input = Slice::from(&encoded[..]);
+    // let decoded = ParsedInternalKey::new(Slice::from(""), 0, ValueType::VALUE);
+    let decoded = ParsedInternalKey::try_from(&input).expect("try_from() should be OK");
+    assert_eq!(key, decoded.user_key.as_str());
+    assert_eq!(seq, decoded.seqno);
+    assert_eq!(vt, decoded.value_type);
+
+    assert!(ParsedInternalKey::try_from(&Slice::from("bar")).is_err());
+  }
+
+  #[test]
+  fn internal_key_encode_decode() {
+    let keys = ["", "k", "hello", "longggggggggggggggggggggg"];
+    let seq = [
+      1, 2, 3,
+      (1u64 << 8) - 1, 1u64 << 8, (1u64 << 8) + 1,
+      (1u64 << 16) - 1, 1u64 << 16, (1u64 << 16) + 1,
+      (1u64 << 32) - 1, 1u64 << 32, (1u64 << 32) + 1
+    ];
+    for k in 0..keys.len() {
+      for s in 0..seq.len() {
+        test_key(keys[k], seq[s], ValueType::VALUE);
+        test_key("hello", 1, ValueType::DELETION);
+      }
+    }
   }
 }

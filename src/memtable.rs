@@ -19,6 +19,7 @@ use std::{mem, slice};
 use std::rc::Rc;
 use std::cell::RefCell;
 use std::cmp::Ordering;
+use std::convert::TryFrom;
 
 use super::skiplist::{SkipList, SkipListIterator};
 use dbformat::{SequenceNumber, ValueType, LookupKey, InternalKeyComparator};
@@ -131,7 +132,7 @@ impl MemTable {
         &Slice::from(user_key), &key.user_key()) == Ordering::Equal {
         // Correct user key
         let tag = coding::decode_fixed_64(&entry[(key_length-8)..key_length]);
-        match ValueType::from((tag & 0xff) as u8) {
+        match ValueType::try_from((tag & 0xff) as u8).expect("invalid tag") {
           ValueType::VALUE => {
             let v = get_length_prefixed_slice(&entry[key_length..]);
             return Some(Ok(get_string_from_slice(&v)))
