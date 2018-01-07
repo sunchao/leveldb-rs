@@ -250,14 +250,14 @@ mod tests {
   }
 
   #[test]
-  fn test_empty() {
+  fn empty() {
     let batch = WriteBatch::new();
     assert_eq!(print_contents(&batch), "");
     assert_eq!(WriteBatchInternal::count(&batch), 0);
   }
 
   #[test]
-  fn test_multiple() {
+  fn multiple() {
     let mut batch = WriteBatch::new();
     batch.put(&Slice::from("foo"), &Slice::from("bar"));
     batch.delete(&Slice::from("box"));
@@ -272,7 +272,7 @@ mod tests {
   }
 
   #[test]
-  fn test_corruption() {
+  fn corruption() {
     let mut batch = WriteBatch::new();
     batch.put(&Slice::from("foo"), &Slice::from("bar"));
     batch.delete(&Slice::from("box"));
@@ -288,7 +288,7 @@ mod tests {
   }
 
   #[test]
-  fn test_append() {
+  fn append() {
     let mut b1 = WriteBatch::new();
     let mut b2 = WriteBatch::new();
     WriteBatchInternal::set_sequence(&mut b1, 200);
@@ -314,7 +314,7 @@ mod tests {
   }
 
   #[test]
-  fn test_approximate_size() {
+  fn approximate_size() {
     let mut batch = WriteBatch::new();
     let empty_size = batch.approximate_size();
 

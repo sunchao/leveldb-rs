@@ -47,7 +47,7 @@ mod tests {
   use super::*;
 
   #[test]
-  fn test_signed_unsigned_issue() {
+  fn signed_unsigned_issue() {
     let data1 = [0x62];
     let data2 = [0xc3, 0x97];
     let data3 = [0xe2, 0x99, 0xa5];

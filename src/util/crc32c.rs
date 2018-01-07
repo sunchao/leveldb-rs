@@ -140,7 +140,7 @@ mod tests {
   use super::*;
 
   #[test]
-  pub fn test_standard_results() {
+  pub fn standard_results() {
     let buf: Vec<u8> = vec![0; 32];
     assert_eq!(value(&buf), 0x8a9136aa);
 
@@ -175,22 +175,22 @@ mod tests {
   }
 
   #[test]
-  pub fn test_values() {
+  pub fn values() {
     assert_ne!(value("a".as_bytes()), value("foo".as_bytes()));
   }
 
   #[test]
-  pub fn test_extend() {
+  pub fn extend() {
     assert_eq!(value("hello world".as_bytes()),
-      extend(value("hello ".as_bytes()), "world".as_bytes()));
+      super::extend(value("hello ".as_bytes()), "world".as_bytes()));
   }
 
   #[test]
-  pub fn test_mask() {
+  pub fn mask() {
     let crc = value("foo".as_bytes());
-    assert_ne!(mask(crc), crc);
-    assert_ne!(mask(mask(crc)), crc);
-    assert_eq!(unmask(mask(crc)), crc);
-    assert_eq!(unmask(unmask(mask(mask(crc)))), crc);
+    assert_ne!(super::mask(crc), crc);
+    assert_ne!(super::mask(super::mask(crc)), crc);
+    assert_eq!(unmask(super::mask(crc)), crc);
+    assert_eq!(unmask(unmask(super::mask(super::mask(crc)))), crc);
   }
 }

@@ -436,7 +436,7 @@ mod tests {
   use util::hash;
 
   #[test]
-  fn test_new_node() {
+  fn new_node() {
     let arena = RefCell::new(Arena::new());
 
     let empty = Vec::new();
@@ -463,7 +463,7 @@ mod tests {
   }
 
   #[test]
-  fn test_empty() {
+  fn empty() {
     let arena = Rc::new(RefCell::new(Arena::new()));
     let cmp = KeyComparator {};
     let list = SkipList::new(Rc::new(cmp), arena, 0);
@@ -480,7 +480,7 @@ mod tests {
   }
 
   #[test]
-  fn test_insert_and_lookup() {
+  fn insert_and_lookup() {
     const N: i32 = 2000;
     const R: u32 = 5000;
 
@@ -706,7 +706,7 @@ mod tests {
   const SEED: u32 = 301;
 
   #[test]
-  fn test_concurrent_without_threads() {
+  fn concurrent_without_threads() {
     let arena = Rc::new(RefCell::new(Arena::new()));
     let tester = ConcurrencyTester::new(arena);
     let rnd = Random::new(SEED);
@@ -798,11 +798,11 @@ mod tests {
     }
   }
 
-  #[test] fn test_concurrent1() { run_concurrent(1); }
-  #[test] fn test_concurrent2() { run_concurrent(2); }
-  #[test] fn test_concurrent3() { run_concurrent(3); }
-  #[test] fn test_concurrent4() { run_concurrent(4); }
-  #[test] fn test_concurrent5() { run_concurrent(5); }
+  #[test] fn concurrent1() { run_concurrent(1); }
+  #[test] fn concurrent2() { run_concurrent(2); }
+  #[test] fn concurrent3() { run_concurrent(3); }
+  #[test] fn concurrent4() { run_concurrent(4); }
+  #[test] fn concurrent5() { run_concurrent(5); }
 
 
   // auxiliary definitions

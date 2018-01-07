@@ -76,7 +76,7 @@ mod tests {
 
   // Some simple sanity tests
   #[test]
-  fn test_random() {
+  fn random() {
     let mut rnd = Random::new(0);
     assert_eq!(rnd.seed.get(), 1);
     rnd = Random::new(2147483647);

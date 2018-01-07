@@ -134,14 +134,14 @@ mod tests {
   use super::*;
 
   #[test]
-  fn test_new() {
+  fn new() {
     let arena = Arena::new();
     check_current_block(&arena, true, 0);
     assert_eq!(arena.memory_usage(), 0);
   }
 
   #[test]
-  fn test_alloc_new() {
+  fn alloc_new() {
     let mut arena = Arena::new();
 
     let _ = arena.alloc_new(128);
@@ -154,7 +154,7 @@ mod tests {
   }
 
   #[test]
-  fn test_alloc_fallback() {
+  fn alloc_fallback() {
     let mut arena = Arena::new();
 
     let _ = arena.alloc_fallback(1025);
@@ -167,7 +167,7 @@ mod tests {
   }
 
   #[test]
-  fn test_alloc_aligned() {
+  fn alloc_aligned() {
     let mut arena = Arena::new();
     let ptr_size = ::std::mem::size_of::<usize>();
     assert!(ptr_size > 1);
@@ -178,7 +178,7 @@ mod tests {
   }
 
   #[test]
-  fn test_alloc() {
+  fn alloc() {
     let mut arena = Arena::new();
 
     let _ = arena.alloc(128);

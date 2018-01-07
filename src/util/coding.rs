@@ -263,7 +263,7 @@ mod tests {
   use util::random::Random;
 
   #[test]
-  fn test_fixed_32() {
+  fn fixed_32() {
     const N: usize = 100000;
     let mut data: Vec<u8> = vec![0; N * 4];
 
@@ -279,13 +279,13 @@ mod tests {
 
   #[test]
   #[should_panic]
-  fn test_fixed_32_panic() {
+  fn fixed_32_panic() {
     let mut data = vec![0; 3];
     encode_fixed_32(&mut data, 100);
   }
 
   #[test]
-  fn test_fixed_64() {
+  fn fixed_64() {
     let mut data: Vec<u8> = vec![0; 64 * 3 * 8];
 
     for power in 0..64 {
@@ -310,13 +310,13 @@ mod tests {
 
   #[test]
   #[should_panic]
-  fn test_fixed_64_panic() {
+  fn fixed_64_panic() {
     let mut data = vec![0; 6];
     encode_fixed_64(&mut data, 100);
   }
 
   #[test]
-  fn test_varint_32() {
+  fn varint_32() {
     let mut idx = 0;
     let mut data: Vec<u8> = vec![0; 32 * 32 * 5];
 
@@ -338,13 +338,13 @@ mod tests {
 
   #[test]
   #[should_panic]
-  fn test_varint_32_no_space() {
+  fn varint_32_no_space() {
     let mut data = vec![0; 1];
     let _ = encode_varint_32(&mut data, 128);
   }
 
   #[test]
-  fn test_varint_32_limit() {
+  fn varint_32_limit() {
     let mut data = vec![0; 5];
     for i in 0..32*32 {
       let v: u32 = (i / 32) << (i % 32);
@@ -359,7 +359,7 @@ mod tests {
   }
 
   #[test]
-  fn test_varint_64() {
+  fn varint_64() {
     let mut values = Vec::new();
     values.push(0);
     values.push(100);
@@ -389,7 +389,7 @@ mod tests {
   }
 
   #[test]
-  fn test_varint_64_limit() {
+  fn varint_64_limit() {
     let mut data = vec![0; 10];
     for i in 0..64*64 {
       let v: u64 = (i / 64) << (i % 64);
@@ -405,45 +405,45 @@ mod tests {
 
   #[test]
   #[should_panic]
-  fn test_varint_64_no_space() {
+  fn varint_64_no_space() {
     let mut data = vec![0; 4];
     let _ = encode_varint_64(&mut data, 2147483648u64);
   }
 
   #[test]
-  fn test_varint_length() {
+  fn varint_length() {
     let rand = Random::new(0xbaaaaaad);
     let mut data = vec![0; 5];
     for _ in 0..1000 {
       let v = rand.next();
       let len = encode_varint_32(&mut data, v);
-      assert_eq!(varint_length(v as u64), len);
+      assert_eq!(super::varint_length(v as u64), len);
     }
   }
 
   #[test]
-  fn test_decode_varint_32_slice() {
+  fn decode_varint_32_slice() {
     let mut v = vec![0; 4];
     let len = encode_varint_32(&mut v, 1000);
     let mut s = Slice::from(&v[..]);
-    let v = decode_varint_32_slice(&mut s).expect("shouldn't be None");
+    let v = super::decode_varint_32_slice(&mut s).expect("shouldn't be None");
     assert_eq!(v, 1000);
     assert_eq!(s.size(), 4 - len);
   }
 
   #[test]
-  fn test_decode_varint_64_slice() {
+  fn decode_varint_64_slice() {
     let mut v = vec![0; 10];
     let c = 1 << 60 as u64;
     let len = encode_varint_64(&mut v, c);
     let mut s = Slice::from(&v[..]);
-    let v = decode_varint_64_slice(&mut s).expect("shouldn't be None");
+    let v = super::decode_varint_64_slice(&mut s).expect("shouldn't be None");
     assert_eq!(v, c);
     assert_eq!(s.size(), 10 - len);
   }
 
   #[test]
-  fn test_prefix_length_slice() {
+  fn prefix_length_slice() {
     let mut v: Vec<u8> = Vec::new();
     encode_length_prefixed_slice(&mut v, &Slice::from(""));
     encode_length_prefixed_slice(&mut v, &Slice::from("hello"));
