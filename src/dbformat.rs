@@ -17,6 +17,7 @@
 
 use std::cmp::Ordering;
 use std::convert::TryFrom;
+use std::fmt::{Debug, Display, Formatter, Result as DebugResult};
 use std::rc::Rc;
 
 use slice::Slice;
@@ -33,6 +34,15 @@ pub const MAX_SEQUENCE_NUMBER: u64 = (0x1u64 << 56) - 1;
 pub enum ValueType {
   DELETION = 0x0,
   VALUE = 0x1
+}
+
+impl Display for ValueType {
+  fn fmt(&self, f: &mut Formatter) -> DebugResult {
+    match self {
+      &ValueType::DELETION => write!(f, "ValueType::Deletion"),
+      &ValueType::VALUE => write!(f, "ValueType::Value")
+    }
+  }
 }
 
 impl TryFrom<u8> for ValueType {
@@ -213,6 +223,29 @@ impl InternalKey {
   }
 }
 
+impl Debug for InternalKey {
+  fn fmt(&self, f: &mut Formatter) -> DebugResult {
+    if let Ok(parsed) = ParsedInternalKey::try_from(&self.rep) {
+      write!(f, "{:?}", parsed)
+    } else {
+      let s = unsafe {
+        ::std::str::from_utf8_unchecked(&self.rep[..])
+      };
+      write!(f, "(bad){}", s)
+    }
+  }
+}
+
+impl<'a> From<&'a Slice> for InternalKey {
+  fn from(s: &'a Slice) -> InternalKey {
+    let mut v = Vec::new();
+    v.extend_from_slice(s.data());
+    InternalKey {
+      rep: v
+    }
+  }
+}
+
 fn append_internal_key(result: &mut Vec<u8>, key: &ParsedInternalKey) {
   result.extend_from_slice(&key.user_key.data());
   let key_len = result.len();
@@ -250,6 +283,13 @@ impl ParsedInternalKey {
   }
 }
 
+impl Debug for ParsedInternalKey {
+  fn fmt(&self, f: &mut Formatter) -> DebugResult {
+    write!(f, "'{}' @ {} : {}", self.user_key.as_str(), self.seqno, self.value_type)
+ }
+}
+
+
 impl<'a> TryFrom<&'a Slice> for ParsedInternalKey {
   type Error = super::result::Error;
 
@@ -263,6 +303,14 @@ impl<'a> TryFrom<&'a Slice> for ParsedInternalKey {
     let num = coding::decode_fixed_64(&s.data()[n-8..]);
     let vt = ValueType::try_from((num & 0xff) as u8)?;
     Ok(ParsedInternalKey::new(Slice::new(s.raw_data(), n - 8), num >> 8, vt))
+  }
+}
+
+impl<'a> TryFrom<&'a Vec<u8>> for ParsedInternalKey {
+  type Error = super::result::Error;
+
+  fn try_from(s: &Vec<u8>) -> Result<ParsedInternalKey> {
+    ParsedInternalKey::try_from(&Slice::from(s))
   }
 }
 
