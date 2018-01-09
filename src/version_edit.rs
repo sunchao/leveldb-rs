@@ -21,7 +21,7 @@ use std::fmt::{Debug, Formatter, Result as DebugResult};
 
 use config;
 use dbformat::{InternalKey, SequenceNumber};
-use result::{Result, Error, ErrorType};
+use result::{Error, ErrorType, Result};
 use slice::Slice;
 use util::coding;
 
@@ -106,7 +106,7 @@ pub struct VersionEdit {
 impl VersionEdit {
   pub fn new() -> Self {
     Self {
-      comparator: String::new(),     // "" is used as dummy initial value
+      comparator: String::new(),     // empty string is used as dummy initial value
       log_number: 0,
       prev_log_number: 0,
       next_file_number: 0,
