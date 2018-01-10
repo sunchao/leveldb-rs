@@ -15,32 +15,13 @@
 // specific language governing permissions and limitations
 // under the License.
 
-#![feature(compiler_fences)]
-#![feature(rustc_private)]
-#![feature(try_from)]
-#![feature(cfg_target_feature)]
-#![feature(nll)]
+pub const NUM_LEVELS: i32 = 7;
 
-extern crate arena;
-extern crate crossbeam;
-extern crate x86intrin;
-#[macro_use]
-extern crate lazy_static;
-extern crate byteorder;
+/// Level-0 compaction is triggered when we hit this many files.
+pub const L0_COMPACTION_TRIGGER: i32 = 4;
 
-pub mod util;
-pub mod env;
-#[macro_use]
-pub mod result;
-pub mod slice;
-pub mod comparator;
-pub mod dbformat;
-pub mod config;
-pub mod skiplist;
-pub mod iterator;
-pub mod memtable;
-pub mod write_batch;
-pub mod log_format;
-pub mod log_writer;
-pub mod log_reader;
-pub mod version_edit;
+/// Soft limit on number of level-0 files. We slow down writes at this point.
+pub const L0_SLOWDOWN_WRITES_TRIGGER: i32 = 8;
+
+/// Maximum number of level-0 files. We stop writes at this point.
+pub const L0_STOP_WRITES_TRIGGER: i32 = 12;
