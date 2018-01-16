@@ -21,6 +21,8 @@
 #![feature(try_from)]
 #![feature(cfg_target_feature)]
 #![feature(nll)]
+#![feature(match_default_bindings)]
+#![feature(conservative_impl_trait)]
 
 extern crate arena;
 extern crate crossbeam;
