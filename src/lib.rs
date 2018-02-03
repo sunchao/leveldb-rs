@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+#![feature(box_syntax)]
 #![feature(compiler_fences)]
 #![feature(rustc_private)]
 #![feature(try_from)]

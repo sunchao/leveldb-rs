@@ -70,65 +70,51 @@ pub struct LookupKey {
   //    user_key    char[key_length - 8]         <- kstart
   //    tag         u64
   //                                             <- size
-  data: *const u8,
-  kstart: usize,
-  size: usize,
 
-  // These two fields are never used: they are here to keep the
-  // `data` pointer alive.
-  _space: [u8; 200], // for short keys - allocated on stack.
-  _vec: Option<Vec<u8>> // keep heap allocated memory alive.
+  // TODO: we may want to allocate small keys on stack.
+  data: Box<[u8]>,
+  kstart: usize,
+  size: usize
 }
 
 impl LookupKey {
   pub fn new(user_key: &Slice, s: SequenceNumber) -> Self {
     let size = user_key.size();
     let needed = size + 13; // a conservative estimate
-    let mut space: [u8; 200] = [0; 200];
-    let (ptr, vec) = if needed <= 200 {
-      (space.as_mut_ptr(), None)
+    let mut data: Box<[u8]> = if needed <= 200 {
+      box [0; 200]
     } else {
-      let mut v = Vec::with_capacity(needed);
-      (v.as_mut_ptr(), Some(v))
+      Vec::with_capacity(needed).into_boxed_slice()
     };
-    let mut dst = unsafe {
-      ::std::slice::from_raw_parts_mut(ptr, needed)
-    };
-    let mut offset = coding::encode_varint_32(&mut dst, size as u32 + 8);
+
+    let mut offset = coding::encode_varint_32(&mut data, size as u32 + 8);
     let kstart = offset;
-    bit::memcpy(&mut dst[offset..], user_key.data());
+    bit::memcpy(&mut data[offset..], user_key.data());
     offset += size;
     coding::encode_fixed_64(
-      &mut dst[offset..], pack_sequence_and_type(s, VALUE_TYPE_FOR_SEEK));
+      &mut data[offset..], pack_sequence_and_type(s, VALUE_TYPE_FOR_SEEK));
     offset += 8;
+
     Self {
-      data: ptr,
+      data: data,
       kstart: kstart,
-      size: offset,
-      _space: space,
-      _vec: vec
+      size: offset
     }
   }
 
   /// Returns the whole key
   pub fn memtable_key(&self) -> Slice {
-    Slice::new(self.data, self.size)
+    Slice::from(&self.data[..self.size])
   }
 
   /// Returns the `user_key` and `tag` part
   pub fn internal_key(&self) -> Slice {
-    unsafe {
-      Slice::new(self.data.offset(self.kstart as isize),
-                 self.size - self.kstart)
-    }
+    Slice::from(&self.data[self.kstart..self.size])
   }
 
   /// Returns the `user_key` part
   pub fn user_key(&self) -> Slice {
-    unsafe {
-      Slice::new(self.data.offset(self.kstart as isize),
-                 self.size - self.kstart - 8)
-    }
+    Slice::from(&self.data[self.kstart..self.size-8])
   }
 }
 
@@ -338,20 +324,12 @@ mod tests {
   #[test]
   fn lookup_key() {
     let short_key = Slice::from("hello");
-    let mut key = LookupKey::new(&short_key, 0);
+    let key = LookupKey::new(&short_key, 0);
     let mut v = [0; 4];
-    let len = coding::encode_varint_32(&mut v, short_key.size() as u32);
+    let len = coding::encode_varint_32(&mut v, short_key.size() as u32 + 8);
     assert_eq!(len, key.kstart);
-    assert_eq!(
-      short_key,
-      Slice::new(unsafe { key.data.offset(len as isize) }, short_key.size()));
+    assert_eq!(short_key, Slice::from(&key.data[len..len+short_key.size()]));
     assert_eq!(len + short_key.size() + 8, key.size);
-    assert_eq!(None, key._vec);
-
-    let v = (0..256).map(|_| 'a' as u8).collect::<Vec<u8>>();
-    let long_key = Slice::from(&v[..]);
-    key = LookupKey::new(&long_key, 1);
-    assert!(key._vec.is_some());
   }
 
   #[test]
