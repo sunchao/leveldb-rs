@@ -332,8 +332,9 @@ impl<T: Default + Debug + 'static> Cache<T> for LRUCache<T> {
 
   fn erase(&mut self, key: &Slice) {
     let mut mutex_data = self.mutex.lock().unwrap();
-    let p = mutex_data.table.remove(key).expect("Key not found");
-    Self::finish_erase(&mut mutex_data, p);
+    if let Some(p) = mutex_data.table.remove(key) {
+      Self::finish_erase(&mut mutex_data, p);
+    }
   }
 
   fn new_id(&self) -> u64 {
