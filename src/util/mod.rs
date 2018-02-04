@@ -22,3 +22,4 @@ pub mod hash;
 pub mod random;
 pub mod bit;
 pub mod crc32c;
+pub mod cache;

@@ -17,6 +17,7 @@
 
 use std::{ptr, slice};
 use std::cmp::Ordering;
+use std::hash::{Hash, Hasher};
 use std::ops::Index;
 
 use util::bit;
@@ -24,7 +25,7 @@ use util::bit;
 /// Just like Rust's slice, except there's no borrowing. Instead, the user needs to
 /// guarantee that the instances of this struct should not live longer than the memory
 /// that `data` points to.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug)] // TODO: double check Hash
 pub struct Slice {
   data: *const u8,
   size: usize
@@ -169,3 +170,9 @@ impl PartialEq for Slice {
 }
 
 impl Eq for Slice { }
+
+impl Hash for Slice {
+  fn hash<H: Hasher>(&self, state: &mut H) {
+    state.write(self.data());
+  }
+}
