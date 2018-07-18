@@ -116,8 +116,8 @@ type LRUHandlePtr<T> = Rc<RefCell<LRUHandle<T>>>;
 impl<T> Drop for LRUHandle<T> where T: Default + Debug {
   fn drop(&mut self) {
     // Only drop for non-dummy nodes with non-empty deleter.
+    let key = self.key();
     if let Some(ref mut deleter) = self.deleter {
-      let key = self.key();
       (deleter)(&key, &self.value);
     }
   }
@@ -227,7 +227,7 @@ impl<T> LRUCache<T> where T: Default + Debug + 'static {
 
   fn drop_dummy_node(n: *mut LRUHandle<T>) {
     assert!(!n.is_null());
-    unsafe { *Box::from_raw(n); }
+    unsafe { let _ = *Box::from_raw(n); }
   }
 
   fn inc_ref(list: *mut LRUHandle<T>, h: &LRUHandlePtr<T>) {
