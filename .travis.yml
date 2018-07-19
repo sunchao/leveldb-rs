@@ -1,5 +1,6 @@
 language: rust
 cache: cargo
+sudo: required
 addons:
   apt:
     packages:
@@ -13,7 +14,8 @@ rust:
 
 before_script:
   - pip install 'travis-cargo<0.2' --user && export PATH=$HOME/.local/bin:$PATH
-  - cargo install cargo-travis --force && export PATH=$HOME/.cargo/bin:$PATH
+  - cargo install cargo-travis || echo "Skipping cargo-travis installation as it is already cached"
+  - export PATH=$HOME/.cargo/bin:$PATH
 
 script:
   - cd $TRAVIS_BUILD_DIR
@@ -30,6 +32,7 @@ env:
   global:
     - TRAVIS_CARGO_NIGHTLY_FEATURE=""
     - RUSTFLAGS="-C target-feature=+sse4.2"
+    - RUST_BACKTRACE=1
 
 dist: trusty
 
