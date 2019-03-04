@@ -17,7 +17,7 @@
 
 use byteorder::{ByteOrder, LittleEndian as LE};
 #[cfg(target_feature="sse4.2")]
-use x86intrin::sse42;
+use std::arch::x86_64::sse42;
 
 const CRC32_XOR: u32 = 0xffffffff;
 const CASTAGNOLI_POLY: u32 = 0x82f63b78;
