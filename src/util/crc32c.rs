@@ -16,8 +16,6 @@
 // under the License.
 
 use byteorder::{ByteOrder, LittleEndian as LE};
-#[cfg(target_feature = "sse4.2")]
-use x86intrin::sse42;
 
 const CRC32_XOR: u32 = 0xffffffff;
 const CASTAGNOLI_POLY: u32 = 0x82f63b78;
@@ -41,13 +39,13 @@ lazy_static! {
 pub fn value(data: &[u8]) -> u32 { extend(0, data) }
 
 pub fn extend(crc: u32, data: &[u8]) -> u32 {
-    #[cfg(target_feature = "sse4.2")]
+    #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
     {
-        extend_hw(crc, data)
-    }
-    #[cfg(not(target_feature = "sse4.2"))]
-    {
-        extend_sw(crc, data)
+        if is_x86_feature_detected!("sse4.2") {
+            unsafe { extend_hw(crc, data) }
+        } else {
+            extend_sw(crc, data)
+        }
     }
 }
 
@@ -84,35 +82,40 @@ pub fn extend_sw(crc: u32, mut data: &[u8]) -> u32 {
     l ^ CRC32_XOR
 }
 
-#[cfg(target_feature = "sse4.2")]
-pub fn extend_hw(crc: u32, data: &[u8]) -> u32 {
+#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+#[target_feature(enable = "sse4.2")]
+pub unsafe fn extend_hw(crc: u32, data: &[u8]) -> u32 {
+    #[cfg(target_arch = "x86")]
+    use std::arch::x86::*;
+    #[cfg(target_arch = "x86_64")]
+    use std::arch::x86_64::*;
+
     let mut l: u32 = crc ^ CRC32_XOR;
     let size = data.len();
     let mut offset = 0;
     if size > 16 {
         let start_offset = align_offset(8, data);
         while offset != start_offset {
-            l = sse42::mm_crc32_u8(l, data[offset]);
+            l = _mm_crc32_u8(l, data[offset]);
             offset += 1;
         }
         while size - offset >= 8 {
-            l = sse42::mm_crc32_u64(l as u64, LE::read_u64(&data[offset..])) as u32;
+            l = _mm_crc32_u64(l as u64, LE::read_u64(&data[offset..])) as u32;
             offset += 8;
         }
         while size - offset >= 4 {
-            l = sse42::mm_crc32_u32(l, LE::read_u32(&data[offset..]));
+            l = _mm_crc32_u32(l, LE::read_u32(&data[offset..]));
             offset += 4;
         }
     }
 
     while offset != size {
-        l = sse42::mm_crc32_u8(l, data[offset]);
+        l = _mm_crc32_u8(l, data[offset]);
         offset += 1;
     }
     l ^ CRC32_XOR
 }
 
-#[cfg(target_feature = "sse4.2")]
 fn align_offset(align: usize, data: &[u8]) -> usize {
     assert!(align & (align - 1) == 0);
     let ptr = data.as_ptr() as usize;

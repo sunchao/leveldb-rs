@@ -17,12 +17,10 @@
 
 #![feature(box_syntax)]
 #![feature(rustc_private)]
-#![feature(try_from)]
 #![feature(nll)]
 
 extern crate arena;
 extern crate crossbeam;
-extern crate x86intrin;
 #[macro_use]
 extern crate lazy_static;
 extern crate byteorder;
