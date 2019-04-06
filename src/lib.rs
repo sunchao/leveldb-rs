@@ -27,19 +27,19 @@ extern crate x86intrin;
 extern crate lazy_static;
 extern crate byteorder;
 
-pub mod util;
 pub mod env;
+pub mod util;
 #[macro_use]
 pub mod result;
-pub mod slice;
 pub mod comparator;
-pub mod dbformat;
 pub mod config;
-pub mod skiplist;
+pub mod dbformat;
 pub mod iterator;
-pub mod memtable;
-pub mod write_batch;
 pub mod log_format;
-pub mod log_writer;
 pub mod log_reader;
+pub mod log_writer;
+pub mod memtable;
+pub mod skiplist;
+pub mod slice;
 pub mod version_edit;
+pub mod write_batch;

@@ -15,8 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::rc::Rc;
-use std::cell::RefCell;
+use std::{cell::RefCell, rc::Rc};
 
 use result::Result;
 use slice::Slice;
@@ -25,22 +24,22 @@ use slice::Slice;
 /// The implementation must provide buffering since callers may append small fragments
 /// at a time to the file.
 pub trait WritableFile {
-  fn append(&mut self, data: &Slice) -> Result<()>;
-  fn close(&mut self) -> Result<()>;
-  fn flush(&mut self) -> Result<()>;
-  fn sync(&mut self) -> Result<()>;
+    fn append(&mut self, data: &Slice) -> Result<()>;
+    fn close(&mut self) -> Result<()>;
+    fn flush(&mut self) -> Result<()>;
+    fn sync(&mut self) -> Result<()>;
 }
 
 /// A file abstraction for reading sequentially through a file.
 pub trait SequentialFile {
-  /// Read up to `n` bytes from the file, and store them in `scratch`.
-  ///
-  /// Return a slice points to the data in `scratch`, whose lifetime must
-  /// be longer than the slice.
-  fn read(&mut self, n: u64, scratch: &mut [u8]) -> Result<Slice>;
+    /// Read up to `n` bytes from the file, and store them in `scratch`.
+    ///
+    /// Return a slice points to the data in `scratch`, whose lifetime must
+    /// be longer than the slice.
+    fn read(&mut self, n: u64, scratch: &mut [u8]) -> Result<Slice>;
 
-  /// Skip `n` bytes from the file.
-  fn skip(&mut self, n: u64) -> Result<()>;
+    /// Skip `n` bytes from the file.
+    fn skip(&mut self, n: u64) -> Result<()>;
 }
 
 pub type SequentialFileRef = Rc<RefCell<SequentialFile>>;

@@ -15,11 +15,11 @@
 // specific language governing permissions and limitations
 // under the License.
 
-pub mod atomic;
 pub mod arena;
+pub mod atomic;
+pub mod bit;
+pub mod cache;
 pub mod coding;
+pub mod crc32c;
 pub mod hash;
 pub mod random;
-pub mod bit;
-pub mod crc32c;
-pub mod cache;

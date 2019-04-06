@@ -17,34 +17,34 @@
 
 #![feature(cfg_target_feature)]
 #![feature(test)]
-extern crate test;
 extern crate leveldb;
 extern crate rand;
+extern crate test;
 
 macro_rules! bench_base {
-  ($bench_name:ident, $fname:ident, $block_size:expr) => {
-    #[bench]
-    fn $bench_name(b: &mut ::test::Bencher) {
-      let block_data = vec!['x' as u8; $block_size];
-      b.bytes = block_data.len() as u64;
-      b.iter(|| {
-        ::leveldb::util::crc32c::$fname(0, &block_data);
-      })
-    }
-  }
+    ($bench_name:ident, $fname:ident, $block_size:expr) => {
+        #[bench]
+        fn $bench_name(b: &mut ::test::Bencher) {
+            let block_data = vec!['x' as u8; $block_size];
+            b.bytes = block_data.len() as u64;
+            b.iter(|| {
+                ::leveldb::util::crc32c::$fname(0, &block_data);
+            })
+        }
+    };
 }
 
 macro_rules! bench_sw {
-  ($bench_name:ident, $block_size:expr) => {
-    bench_base!($bench_name, extend_sw, $block_size);
-  }
+    ($bench_name:ident, $block_size:expr) => {
+        bench_base!($bench_name, extend_sw, $block_size);
+    };
 }
 
 macro_rules! bench_hw {
-  ($bench_name:ident, $block_size:expr) => {
-    #[cfg(target_feature="sse4.2")]
-    bench_base!($bench_name, extend_hw, $block_size);
-  }
+    ($bench_name:ident, $block_size:expr) => {
+        #[cfg(target_feature = "sse4.2")]
+        bench_base!($bench_name, extend_hw, $block_size);
+    };
 }
 
 bench_sw!(sw_00000256, 00000256);

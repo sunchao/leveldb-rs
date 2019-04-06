@@ -18,73 +18,72 @@
 use std::cell::Cell;
 
 pub struct Random {
-  seed: Cell<u32>
+    seed: Cell<u32>,
 }
 
 /// A simple random number generator that uses multiplicative
 /// congruential generator (MCG).
 impl Random {
-  pub fn new(s: u32) -> Self {
-    let mut seed = s & 0x7fffffffu32;
-    if seed == 0 || seed == 2147483647 {
-      seed = 1
+    pub fn new(s: u32) -> Self {
+        let mut seed = s & 0x7fffffffu32;
+        if seed == 0 || seed == 2147483647 {
+            seed = 1
+        }
+        Self {
+            seed: Cell::new(seed),
+        }
     }
-    Self { seed: Cell::new(seed) }
-  }
 
-  /// Returns the next random number in this generator.
-  pub fn next(&self) -> u32 {
-    // See https://en.wikipedia.org/wiki/Linear_congruential_generator
-    let m: u32 = 2147483647;
-    let a: u64 = 16807;
-    let product: u64 = self.seed.get() as u64 * a;
+    /// Returns the next random number in this generator.
+    pub fn next(&self) -> u32 {
+        // See https://en.wikipedia.org/wiki/Linear_congruential_generator
+        let m: u32 = 2147483647;
+        let a: u64 = 16807;
+        let product: u64 = self.seed.get() as u64 * a;
 
-    self.seed.set((product >> 31) as u32 + ((product as u32) & m));
+        self.seed
+            .set((product >> 31) as u32 + ((product as u32) & m));
 
-    if self.seed.get() > m {
-      self.seed.set(self.seed.get() - m);
+        if self.seed.get() > m {
+            self.seed.set(self.seed.get() - m);
+        }
+        self.seed.get()
     }
-    self.seed.get()
-  }
 
-  /// Returns a uniformly distributed value in the range `[0..n)`
-  #[inline(always)]
-  pub fn uniform(&self, n: u32) -> u32 {
-    self.next() % n
-  }
+    /// Returns a uniformly distributed value in the range `[0..n)`
+    #[inline(always)]
+    pub fn uniform(&self, n: u32) -> u32 { self.next() % n }
 
-  /// Randomly returns true ~ "1/n" of the time. False otherwise.
-  #[inline(always)]
-  pub fn one_in(&self, n: u32) -> bool {
-    self.next() % n == 0
-  }
+    /// Randomly returns true ~ "1/n" of the time. False otherwise.
+    #[inline(always)]
+    pub fn one_in(&self, n: u32) -> bool { self.next() % n == 0 }
 
-  /// Skewed: this first pick "base" uniformly from range `[0, max_log]`,
-  /// and then return "base" random bits. The effect is to pick a random
-  /// number in the range `[0, 2^max_log)` with exponential bias towards
-  /// smaller numbers.
-  #[inline(always)]
-  pub fn skewed(&self, max_log: u32) -> u32 {
-    let r = 1 << self.uniform(max_log + 1);
-    self.uniform(r)
-  }
+    /// Skewed: this first pick "base" uniformly from range `[0, max_log]`,
+    /// and then return "base" random bits. The effect is to pick a random
+    /// number in the range `[0, 2^max_log)` with exponential bias towards
+    /// smaller numbers.
+    #[inline(always)]
+    pub fn skewed(&self, max_log: u32) -> u32 {
+        let r = 1 << self.uniform(max_log + 1);
+        self.uniform(r)
+    }
 }
 
 #[cfg(test)]
 mod tests {
-  use super::*;
+    use super::*;
 
-  // Some simple sanity tests
-  #[test]
-  fn random() {
-    let mut rnd = Random::new(0);
-    assert_eq!(rnd.seed.get(), 1);
-    rnd = Random::new(2147483647);
-    assert_eq!(rnd.seed.get(), 1);
+    // Some simple sanity tests
+    #[test]
+    fn random() {
+        let mut rnd = Random::new(0);
+        assert_eq!(rnd.seed.get(), 1);
+        rnd = Random::new(2147483647);
+        assert_eq!(rnd.seed.get(), 1);
 
-    rnd = Random::new(3);
-    assert_eq!(rnd.next(), 50421);
-    assert_eq!(rnd.uniform(10), 7);
-    assert_eq!(rnd.skewed(2), 1);
-  }
+        rnd = Random::new(3);
+        assert_eq!(rnd.next(), 50421);
+        assert_eq!(rnd.uniform(10), 7);
+        assert_eq!(rnd.skewed(2), 1);
+    }
 }

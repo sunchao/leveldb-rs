@@ -21,42 +21,42 @@ use result::{Error, ErrorType, Result};
 
 #[derive(Clone, Copy, PartialEq)]
 pub enum RecordType {
-  ZERO = 0,
-  FULL = 1,
-  FIRST = 2,
-  MIDDLE = 3,
-  LAST = 4
+    ZERO = 0,
+    FULL = 1,
+    FIRST = 2,
+    MIDDLE = 3,
+    LAST = 4,
 }
 
 impl TryFrom<i32> for RecordType {
-  type Error = Error;
-  fn try_from(t: i32) -> Result<Self> {
-    match t {
-      0 => Ok(RecordType::ZERO),
-      1 => Ok(RecordType::FULL),
-      2 => Ok(RecordType::FIRST),
-      3 => Ok(RecordType::MIDDLE),
-      4 => Ok(RecordType::LAST),
-      _ => LEVELDB_ERR!(
-        InvalidArgument,
-        "Invalid input for RecordType. Valid range is [0, 4]"
-      )
+    type Error = Error;
+
+    fn try_from(t: i32) -> Result<Self> {
+        match t {
+            0 => Ok(RecordType::ZERO),
+            1 => Ok(RecordType::FULL),
+            2 => Ok(RecordType::FIRST),
+            3 => Ok(RecordType::MIDDLE),
+            4 => Ok(RecordType::LAST),
+            _ => LEVELDB_ERR!(
+                InvalidArgument,
+                "Invalid input for RecordType. Valid range is [0, 4]"
+            ),
+        }
     }
-  }
 }
 
 impl ::std::fmt::Display for RecordType {
-  fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
-    let str =
-      match *self {
-        RecordType::ZERO => "ZERO",
-        RecordType::FULL => "FULL",
-        RecordType::FIRST => "FIRST",
-        RecordType::MIDDLE => "MIDDLE",
-        RecordType::LAST => "LAST"
-      };
-    write!(f, "{}", str)
-  }
+    fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+        let str = match *self {
+            RecordType::ZERO => "ZERO",
+            RecordType::FULL => "FULL",
+            RecordType::FIRST => "FIRST",
+            RecordType::MIDDLE => "MIDDLE",
+            RecordType::LAST => "LAST",
+        };
+        write!(f, "{}", str)
+    }
 }
 
 pub const MAX_RECORD_TYPE: i32 = RecordType::LAST as i32;

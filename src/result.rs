@@ -17,56 +17,56 @@
 
 #[derive(Debug)]
 pub enum ErrorType {
-  NotFound,
-  Corruption,
-  NotSupported,
-  InvalidArgument,
-  IOError
+    NotFound,
+    Corruption,
+    NotSupported,
+    InvalidArgument,
+    IOError,
 }
 
 impl ErrorType {
-  pub fn as_str(&self) -> &'static str {
-    match *self {
-      ErrorType::NotFound => "NotFoundError",
-      ErrorType::Corruption => "CorruptionError",
-      ErrorType::NotSupported => "NotSupportedError",
-      ErrorType::InvalidArgument => "InvalidArgumentError",
-      ErrorType::IOError => "IOError",
+    pub fn as_str(&self) -> &'static str {
+        match *self {
+            ErrorType::NotFound => "NotFoundError",
+            ErrorType::Corruption => "CorruptionError",
+            ErrorType::NotSupported => "NotSupportedError",
+            ErrorType::InvalidArgument => "InvalidArgumentError",
+            ErrorType::IOError => "IOError",
+        }
     }
-  }
 }
 
 #[derive(Debug)]
 pub struct Error {
-  ty: ErrorType,
-  msg: &'static str
+    ty: ErrorType,
+    msg: &'static str,
 }
 
 impl Error {
-  pub fn new(ty: ErrorType, msg: &'static str) -> Error {
-    Error { ty: ty, msg: msg }
-  }
+    pub fn new(ty: ErrorType, msg: &'static str) -> Error { Error { ty, msg } }
 }
 
 impl ::std::fmt::Display for Error {
-  fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
-    if self.msg.is_empty() {
-      write!(f, "LevelDB {}", self.ty.as_str())
-    } else {
-      write!(f, "LevelDB {}: {}", self.ty.as_str(), self.msg)
+    fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+        if self.msg.is_empty() {
+            write!(f, "LevelDB {}", self.ty.as_str())
+        } else {
+            write!(f, "LevelDB {}: {}", self.ty.as_str(), self.msg)
+        }
     }
-  }
 }
 
 impl ::std::error::Error for Error {
-  fn description(&self) -> &str {
-    self.msg
-  }
+    fn description(&self) -> &str { self.msg }
 }
 
 pub type Result<T> = ::std::result::Result<T, Error>;
 
 macro_rules! LEVELDB_ERR {
-  ($tp:tt) => (Err(Error::new(ErrorType::$tp, "")));
-  ($tp:tt, $msg:expr) => (Err(Error::new(ErrorType::$tp, $msg)));
+    ($tp:tt) => {
+        Err(Error::new(ErrorType::$tp, ""))
+    };
+    ($tp:tt, $msg:expr) => {
+        Err(Error::new(ErrorType::$tp, $msg))
+    };
 }
