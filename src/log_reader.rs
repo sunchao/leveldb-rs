@@ -17,11 +17,13 @@
 
 use std::{cell::RefCell, convert::TryFrom, rc::Rc};
 
-use env::SequentialFileRef;
-use log_format::{RecordType, BLOCK_SIZE, HEADER_SIZE, MAX_RECORD_TYPE};
-use result::{Error, ErrorType, Result};
-use slice::Slice;
-use util::{coding, crc32c};
+use crate::{
+    env::SequentialFileRef,
+    log_format::{RecordType, BLOCK_SIZE, HEADER_SIZE, MAX_RECORD_TYPE},
+    result::{Error, ErrorType, Result},
+    slice::Slice,
+    util::{coding, crc32c},
+};
 
 pub const EOF: i32 = MAX_RECORD_TYPE + 1;
 

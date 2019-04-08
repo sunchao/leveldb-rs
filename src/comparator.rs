@@ -17,7 +17,7 @@
 
 use std::cmp::Ordering;
 
-use slice::Slice;
+use crate::slice::Slice;
 
 /// A comparator for type `T`.
 pub trait Comparator<T> {

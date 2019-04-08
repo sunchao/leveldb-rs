@@ -15,7 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use slice::Slice;
+use crate::slice::Slice;
 
 pub trait Iterator {
     /// An iterator is either positioned at a key/value pair, or

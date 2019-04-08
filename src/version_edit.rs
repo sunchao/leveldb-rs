@@ -21,11 +21,13 @@ use std::{
     fmt::{Debug, Formatter, Result as DebugResult},
 };
 
-use config;
-use dbformat::{InternalKey, SequenceNumber};
-use result::{Error, ErrorType, Result};
-use slice::Slice;
-use util::coding;
+use crate::{
+    config,
+    dbformat::{InternalKey, SequenceNumber},
+    result::{Error, ErrorType, Result},
+    slice::Slice,
+    util::coding,
+};
 
 enum Tag {
     Comparator = 1,
@@ -414,7 +416,7 @@ fn get_level(input: &mut Slice) -> Option<i32> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use dbformat::ValueType;
+    use crate::dbformat::ValueType;
 
     fn test_encode_decode(edit: &VersionEdit) {
         let mut encoded = Vec::new();

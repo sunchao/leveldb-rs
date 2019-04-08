@@ -26,8 +26,7 @@ use std::{
     sync::Mutex,
 };
 
-use slice::Slice;
-use util::hash;
+use crate::{slice::Slice, util::hash};
 
 pub trait Handle<T> {
     fn get_value(&self) -> &T;
@@ -453,7 +452,7 @@ mod tests {
     use std::{cell::RefCell, rc::Rc};
 
     use super::*;
-    use util::coding;
+    use crate::util::coding;
 
     struct CacheTester {
         cache: Box<Cache<i32>>,

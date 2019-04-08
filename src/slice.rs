@@ -22,7 +22,7 @@ use std::{
     ptr, slice,
 };
 
-use util::bit;
+use crate::util::bit;
 
 /// Just like Rust's slice, except there's no borrowing. Instead, the user needs to
 /// guarantee that the instances of this struct should not live longer than the memory

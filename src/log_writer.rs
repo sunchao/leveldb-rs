@@ -17,11 +17,13 @@
 
 use std::{convert::TryFrom, mem};
 
-use env::WritableFile;
-use log_format::{RecordType, BLOCK_SIZE, HEADER_SIZE, MAX_RECORD_TYPE};
-use result::Result;
-use slice::Slice;
-use util::{coding, crc32c};
+use crate::{
+    env::WritableFile,
+    log_format::{RecordType, BLOCK_SIZE, HEADER_SIZE, MAX_RECORD_TYPE},
+    result::Result,
+    slice::Slice,
+    util::{coding, crc32c},
+};
 
 pub struct Writer {
     // The destination file to store the logs
@@ -142,13 +144,16 @@ impl Writer {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+
     use std::{cell::RefCell, error::Error as StdError, rc::Rc};
 
-    use super::*;
-    use env::SequentialFile;
-    use log_reader::*;
-    use result::{Error, ErrorType, Result};
-    use util::{coding::encode_fixed_32, crc32c, random::Random};
+    use crate::{
+        env::SequentialFile,
+        log_reader::*,
+        result::{Error, ErrorType, Result},
+        util::{coding::encode_fixed_32, crc32c, random::Random},
+    };
 
     struct StringDest {
         contents: Rc<RefCell<Vec<u8>>>,

@@ -17,7 +17,7 @@
 
 use std::{mem::transmute, ptr::copy_nonoverlapping};
 
-use slice::Slice;
+use crate::slice::Slice;
 
 /// --------------------------------------------------------------------------------
 /// Encoding & Decoding which deal with primitive Rust slices
@@ -273,7 +273,7 @@ pub fn decode_length_prefixed_slice(input: &mut Slice) -> Option<Slice> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use util::random::Random;
+    use crate::util::random::Random;
 
     #[test]
     fn fixed_32() {
