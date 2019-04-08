@@ -19,12 +19,6 @@
 #![feature(rustc_private)]
 #![feature(nll)]
 
-extern crate arena;
-extern crate crossbeam;
-#[macro_use]
-extern crate lazy_static;
-extern crate byteorder;
-
 pub mod env;
 pub mod util;
 #[macro_use]

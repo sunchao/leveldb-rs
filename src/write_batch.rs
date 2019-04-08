@@ -17,11 +17,13 @@
 
 use std::{convert::TryFrom, rc::Rc};
 
-use dbformat::{SequenceNumber, ValueType};
-use memtable::MemTable;
-use result::{Error, ErrorType, Result};
-use slice::Slice;
-use util::coding;
+use crate::{
+    dbformat::{SequenceNumber, ValueType},
+    memtable::MemTable,
+    result::{Error, ErrorType, Result},
+    slice::Slice,
+    util::coding,
+};
 
 // WriteBatch header has a 8-byte sequence number followed by 4-byte count.
 const HEADER_SIZE: usize = 12;
@@ -197,8 +199,10 @@ impl Handler for MemTableInserter {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use comparator::BytewiseComparator;
-    use dbformat::{InternalKeyComparator, ParsedInternalKey};
+    use crate::{
+        comparator::BytewiseComparator,
+        dbformat::{InternalKeyComparator, ParsedInternalKey},
+    };
     use std::convert::TryFrom;
 
     fn print_contents(b: &WriteBatch) -> String {

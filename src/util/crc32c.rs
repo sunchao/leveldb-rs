@@ -16,6 +16,7 @@
 // under the License.
 
 use byteorder::{ByteOrder, LittleEndian as LE};
+use lazy_static::*;
 
 const CRC32_XOR: u32 = 0xffffffff;
 const CASTAGNOLI_POLY: u32 = 0x82f63b78;

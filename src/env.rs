@@ -17,8 +17,7 @@
 
 use std::{cell::RefCell, rc::Rc};
 
-use result::Result;
-use slice::Slice;
+use crate::{result::Result, slice::Slice};
 
 /// A file abstraction for sequential writing.
 /// The implementation must provide buffering since callers may append small fragments

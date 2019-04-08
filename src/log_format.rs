@@ -17,7 +17,7 @@
 
 use std::convert::TryFrom;
 
-use result::{Error, ErrorType, Result};
+use crate::result::{Error, ErrorType, Result};
 
 #[derive(Clone, Copy, PartialEq)]
 pub enum RecordType {

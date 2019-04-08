@@ -22,10 +22,12 @@ use std::{
     rc::Rc,
 };
 
-use comparator::Comparator;
-use result::{Error, ErrorType, Result};
-use slice::Slice;
-use util::{bit, coding};
+use crate::{
+    comparator::Comparator,
+    result::{Error, ErrorType, Result},
+    slice::Slice,
+    util::{bit, coding},
+};
 
 pub type SequenceNumber = u64;
 

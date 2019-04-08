@@ -18,7 +18,7 @@
 use std::{cell::RefCell, cmp::Ordering, mem, ptr, rc::Rc, slice};
 
 use super::comparator::Comparator;
-use util::{
+use crate::util::{
     arena::{Arena, ArenaRef},
     atomic::{AtomicPointer, AtomicUsize},
     random::Random,
@@ -409,6 +409,8 @@ impl<'a, K> SkipListIterator<'a, K> {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+
     use crossbeam;
     use std::{
         collections::{
@@ -419,8 +421,7 @@ mod tests {
         sync::{Condvar, Mutex},
     };
 
-    use super::*;
-    use util::{
+    use crate::util::{
         atomic::{AtomicBool, AtomicU64},
         hash,
     };
