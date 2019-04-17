@@ -37,6 +37,14 @@ pub fn encode_fixed_32(dst: &mut [u8], value: u32) {
     }
 }
 
+/// Encodes 'value` in little-endian and appends it to `dst`. Extending the vector if
+/// necessary.
+pub fn encode_fixed_32_vec(dst: &mut Vec<u8>, value: u32) {
+    let mut buf: [u8; 4] = [0; 4];
+    encode_fixed_32(&mut buf, value);
+    dst.extend_from_slice(&buf);
+}
+
 /// Encodes `value` in little-endian and puts in the first 8-bytes of `dst`.
 ///
 /// Panics if `dst.len()` is less than 8.
@@ -46,6 +54,14 @@ pub fn encode_fixed_64(dst: &mut [u8], value: u64) {
         let bytes = transmute::<_, [u8; 8]>(value.to_le());
         copy_nonoverlapping(bytes.as_ptr(), dst.as_mut_ptr(), 8);
     }
+}
+
+/// Encodes 'value` in little-endian and appends it to `dst`. Extending the vector if
+/// necessary.
+pub fn encode_fixed_64_vec(dst: &mut Vec<u8>, value: u64) {
+    let mut buf: [u8; 8] = [0; 8];
+    encode_fixed_64(&mut buf, value);
+    dst.extend_from_slice(&buf);
 }
 
 /// Decodes the first 4-bytes of `src` in little-endian and returns the decoded value.
