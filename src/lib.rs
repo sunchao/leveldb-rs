@@ -31,6 +31,7 @@ pub mod log_format;
 pub mod log_reader;
 pub mod log_writer;
 pub mod memtable;
+pub mod options;
 pub mod skiplist;
 pub mod slice;
 pub mod version_edit;
