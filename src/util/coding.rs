@@ -17,7 +17,10 @@
 
 use std::{mem::transmute, ptr::copy_nonoverlapping};
 
-use crate::slice::Slice;
+use crate::{
+    result::{Error, ErrorType, Result},
+    slice::Slice,
+};
 
 /// --------------------------------------------------------------------------------
 /// Encoding & Decoding which deal with primitive Rust slices
@@ -150,8 +153,8 @@ pub fn encode_varint_64_vec(dst: &mut Vec<u8>, value: u64) -> usize {
 /// decoded value, and the second element is the number of bytes used to encode the result
 /// value.
 ///
-/// If `src` doesn't contain a valid varint32, returns `None`.
-pub fn decode_varint_32(src: &[u8]) -> Option<(u32, usize)> {
+/// Returns error if `src` doesn't contain a valid varint32.
+pub fn decode_varint_32(src: &[u8]) -> Result<(u32, usize)> {
     decode_varint_32_limit(src, src.len())
 }
 
@@ -159,9 +162,12 @@ pub fn decode_varint_32(src: &[u8]) -> Option<(u32, usize)> {
 /// the first is the decoded value, and the second element is the number of bytes used to
 /// encode the result value.
 
-/// If `src.len` is less than `limit`, or the first `limit` bytes of `src` doesn't contain
-/// a valid varint32, returns `None`.
-pub fn decode_varint_32_limit(src: &[u8], limit: usize) -> Option<(u32, usize)> {
+/// Returns error if the first `limit` bytes of `src` doesn't contain a valid varint32.
+///
+/// # Panics
+///
+/// Panics if `src.len` is less than `limit`.
+pub fn decode_varint_32_limit(src: &[u8], limit: usize) -> Result<(u32, usize)> {
     assert!(src.len() >= limit);
     let mut shift = 0;
     let mut idx = 0;
@@ -172,17 +178,20 @@ pub fn decode_varint_32_limit(src: &[u8], limit: usize) -> Option<(u32, usize)> 
         result |= ((byte & 0x7F) as u32) << shift;
         shift += 7;
         if byte & 0x80 == 0 {
-            return Some((result, idx));
+            return Ok((result, idx));
         }
     }
-    None
+    Err(Error::new(
+        ErrorType::Corruption,
+        "Error when decoding varint-32",
+    ))
 }
 
 /// Decodes varint64 from `src`, and returns a tuple of which the first is the decoded
 /// value, and the second element is the number of bytes used to encode the result value.
 ///
-/// If `src` doesn't contain a valid varint64, returns `None`.
-pub fn decode_varint_64(src: &[u8]) -> Option<(u64, usize)> {
+/// Returns error if `src` doesn't contain a valid varint64.
+pub fn decode_varint_64(src: &[u8]) -> Result<(u64, usize)> {
     decode_varint_64_limit(src, src.len())
 }
 
@@ -190,9 +199,12 @@ pub fn decode_varint_64(src: &[u8]) -> Option<(u64, usize)> {
 /// the first is the decoded value, and the second element is the number of bytes used to
 /// encode the result value.
 ///
-/// If `src.len` is less than `limit`, or the first `limit` bytes of `src` doesn't contain
-/// a valid varint64, returns `None`.
-pub fn decode_varint_64_limit(src: &[u8], limit: usize) -> Option<(u64, usize)> {
+/// Returns error if first `limit` bytes of `src` doesn't contain a valid varint64.
+///
+/// # Panics
+///
+/// Panics if `src.len` is less than `limit`.
+pub fn decode_varint_64_limit(src: &[u8], limit: usize) -> Result<(u64, usize)> {
     assert!(src.len() >= limit);
     let mut shift = 0;
     let mut idx = 0;
@@ -203,10 +215,13 @@ pub fn decode_varint_64_limit(src: &[u8], limit: usize) -> Option<(u64, usize)> 
         result |= ((byte & 0x7F) as u64) << shift;
         shift += 7;
         if byte & 0x80 == 0 {
-            return Some((result, idx));
+            return Ok((result, idx));
         }
     }
-    None
+    Err(Error::new(
+        ErrorType::Corruption,
+        "Input doesn't contain a valid varint-64.",
+    ))
 }
 
 /// Returns the length of the varint32 or varint64 encoding of `v`
@@ -239,35 +254,38 @@ pub fn encode_length_prefixed_slice(dst: &mut Vec<u8>, v: &Slice) {
 /// Decodes the varint32 encoded u32 value from the `input`, and advances the slice past
 /// the decoded value.
 ///
-/// Returns a u32 value if the decoding is successful. Otherwise, returns `None`.
-pub fn decode_varint_32_slice(input: &mut Slice) -> Option<u32> {
+/// Returns a u32 value if the decoding is successful, otherwise returns error.
+pub fn decode_varint_32_slice(input: &mut Slice) -> Result<u32> {
     let (result, len) = decode_varint_32(input.data())?;
     input.remove_prefix(len);
-    Some(result)
+    Ok(result)
 }
 
 /// Decodes the varint64 encoded u64 value from the `input`, and advances the slice past
 /// the decoded value.
 ///
-/// Returns a u64 value if the decoding is successful. Otherwise, returns `None`.
-pub fn decode_varint_64_slice(input: &mut Slice) -> Option<u64> {
+/// Returns a u64 value if the decoding is successful, otherwise returns error.
+pub fn decode_varint_64_slice(input: &mut Slice) -> Result<u64> {
     let (result, len) = decode_varint_64(input.data())?;
     input.remove_prefix(len);
-    Some(result)
+    Ok(result)
 }
 
 /// Decodes the value from the slice using length-prefixed encoding, and advance the slice
 /// past the value.
 ///
-/// Returns a slice which contains the decoded value, or `None` if the input is malformed.
-pub fn decode_length_prefixed_slice(input: &mut Slice) -> Option<Slice> {
+/// Returns a slice which contains the decoded value, or error if the input is malformed.
+pub fn decode_length_prefixed_slice(input: &mut Slice) -> Result<Slice> {
     let len = decode_varint_32_slice(input)? as usize;
     if input.size() >= len {
         let result = Slice::new(input.raw_data(), len);
         input.remove_prefix(len);
-        return Some(result);
+        return Ok(result);
     }
-    None
+    Err(Error::new(
+        ErrorType::Corruption,
+        "Input slice doesn't contain a length-prefixed encoded value.",
+    ))
 }
 
 #[cfg(test)]
@@ -341,9 +359,7 @@ mod tests {
         idx = 0;
         for i in 0..32 * 32 {
             let expected = (i / 32) << (i % 32);
-            let result = decode_varint_32(&data[idx..]);
-            assert!(result.is_some());
-            let (actual, next_idx) = result.unwrap();
+            let (actual, next_idx) = decode_varint_32(&data[idx..]).expect("OK");
             assert_eq!(actual, expected);
             idx += next_idx;
         }
@@ -363,9 +379,7 @@ mod tests {
             let v: u32 = (i / 32) << (i % 32);
             let limit = encode_varint_32(&mut data, v);
             assert!(limit <= 5);
-            let result = decode_varint_32_limit(&mut data, limit);
-            assert!(result.is_some());
-            let (actual, len) = result.unwrap();
+            let (actual, len) = decode_varint_32_limit(&mut data, limit).expect("OK");
             assert_eq!(actual, v);
             assert_eq!(len, limit);
         }
@@ -393,9 +407,7 @@ mod tests {
 
         idx = 0;
         for v in &values {
-            let result = decode_varint_64(&data[idx..]);
-            assert!(result.is_some());
-            let (actual, offset) = result.unwrap();
+            let (actual, offset) = decode_varint_64(&data[idx..]).expect("OK");
             assert_eq!(actual, *v);
             idx += offset;
         }
@@ -408,9 +420,7 @@ mod tests {
             let v: u64 = (i / 64) << (i % 64);
             let limit = encode_varint_64(&mut data, v);
             assert!(limit <= 10);
-            let result = decode_varint_64_limit(&mut data, limit);
-            assert!(result.is_some());
-            let (actual, len) = result.unwrap();
+            let (actual, len) = decode_varint_64_limit(&mut data, limit).expect("OK");
             assert_eq!(actual, v);
             assert_eq!(len, limit);
         }

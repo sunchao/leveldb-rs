@@ -244,103 +244,61 @@ impl VersionEdit {
                 break;
             }
             let tag_num = coding::decode_varint_32_slice(&mut input);
-            if tag_num.is_none() {
+            if tag_num.is_err() {
                 // No more input
                 break;
             }
             if let Ok(tag) = Tag::try_from(tag_num.unwrap() as u8) {
                 match tag {
                     Tag::Comparator => {
-                        if let Some(s) = coding::decode_length_prefixed_slice(&mut input)
-                        {
-                            self.comparator = s.to_string();
-                            self.has_comparator = true;
-                        } else {
-                            msg = Some("comparator name");
-                        }
+                        let s = coding::decode_length_prefixed_slice(&mut input)?;
+                        self.comparator = s.to_string();
+                        self.has_comparator = true;
                     },
                     Tag::LogNumber => {
-                        if let Some(log_number) =
-                            coding::decode_varint_64_slice(&mut input)
-                        {
-                            self.has_log_number = true;
-                            self.log_number = log_number;
-                        } else {
-                            msg = Some("log number");
-                        }
+                        let log_number = coding::decode_varint_64_slice(&mut input)?;
+                        self.has_log_number = true;
+                        self.log_number = log_number;
                     },
                     Tag::PrevLogNumber => {
-                        if let Some(prev_log_number) =
-                            coding::decode_varint_64_slice(&mut input)
-                        {
-                            self.has_prev_log_number = true;
-                            self.prev_log_number = prev_log_number;
-                        } else {
-                            msg = Some("previous log number");
-                        }
+                        let prev_log_number = coding::decode_varint_64_slice(&mut input)?;
+                        self.has_prev_log_number = true;
+                        self.prev_log_number = prev_log_number;
                     },
                     Tag::NextFileNumber => {
-                        if let Some(next_file_number) =
-                            coding::decode_varint_64_slice(&mut input)
-                        {
-                            self.has_next_file_number = true;
-                            self.next_file_number = next_file_number;
-                        } else {
-                            msg = Some("next file number");
-                        }
+                        let next_file_number =
+                            coding::decode_varint_64_slice(&mut input)?;
+                        self.has_next_file_number = true;
+                        self.next_file_number = next_file_number;
                     },
                     Tag::LastSequence => {
-                        if let Some(last_sequence) =
-                            coding::decode_varint_64_slice(&mut input)
-                        {
-                            self.has_last_sequence = true;
-                            self.last_sequence = last_sequence;
-                        } else {
-                            msg = Some("last sequence number");
-                        }
+                        let last_sequence = coding::decode_varint_64_slice(&mut input)?;
+                        self.has_last_sequence = true;
+                        self.last_sequence = last_sequence;
                     },
                     Tag::CompactPointer => {
-                        let maybe_level = get_level(&mut input);
-                        let maybe_key = get_internal_key(&mut input);
-                        if maybe_level.is_some() && maybe_key.is_some() {
-                            self.compact_pointers
-                                .push((maybe_level.unwrap(), maybe_key.unwrap()));
-                        } else {
-                            msg = Some("compaction pointer");
-                        }
+                        let maybe_level = get_level(&mut input)?;
+                        let maybe_key = get_internal_key(&mut input)?;
+                        self.compact_pointers.push((maybe_level, maybe_key));
                     },
                     Tag::DeletedFile => {
-                        let maybe_level = get_level(&mut input);
-                        let maybe_num = coding::decode_varint_64_slice(&mut input);
-                        if maybe_level.is_some() && maybe_num.is_some() {
-                            self.deleted_files
-                                .insert((maybe_level.unwrap(), maybe_num.unwrap()));
-                        } else {
-                            msg = Some("deleted file");
-                        }
+                        let maybe_level = get_level(&mut input)?;
+                        let maybe_num = coding::decode_varint_64_slice(&mut input)?;
+                        self.deleted_files.insert((maybe_level, maybe_num));
                     },
                     Tag::NewFile => {
-                        let maybe_level = get_level(&mut input);
-                        let maybe_num = coding::decode_varint_64_slice(&mut input);
-                        let maybe_file_size = coding::decode_varint_64_slice(&mut input);
-                        let maybe_smallest = get_internal_key(&mut input);
-                        let maybe_largest = get_internal_key(&mut input);
-                        if maybe_level.is_some()
-                            && maybe_num.is_some()
-                            && maybe_file_size.is_some()
-                            && maybe_smallest.is_some()
-                            && maybe_largest.is_some()
-                        {
-                            let f = FileMetaData::new(
-                                maybe_num.unwrap(),
-                                maybe_file_size.unwrap(),
-                                maybe_smallest.unwrap(),
-                                maybe_largest.unwrap(),
-                            );
-                            self.new_files.push((maybe_level.unwrap(), f));
-                        } else {
-                            msg = Some("new-file entry")
-                        }
+                        let maybe_level = get_level(&mut input)?;
+                        let maybe_num = coding::decode_varint_64_slice(&mut input)?;
+                        let maybe_file_size = coding::decode_varint_64_slice(&mut input)?;
+                        let maybe_smallest = get_internal_key(&mut input)?;
+                        let maybe_largest = get_internal_key(&mut input)?;
+                        let f = FileMetaData::new(
+                            maybe_num,
+                            maybe_file_size,
+                            maybe_smallest,
+                            maybe_largest,
+                        );
+                        self.new_files.push((maybe_level, f));
                     },
                 }
             } else {
@@ -396,21 +354,18 @@ impl Debug for VersionEdit {
     }
 }
 
-fn get_internal_key(input: &mut Slice) -> Option<InternalKey> {
-    if let Some(s) = coding::decode_length_prefixed_slice(input) {
-        Some(InternalKey::from(&s))
-    } else {
-        None
-    }
+fn get_internal_key(input: &mut Slice) -> Result<InternalKey> {
+    coding::decode_length_prefixed_slice(input).and_then(|s| Ok(InternalKey::from(&s)))
 }
 
-fn get_level(input: &mut Slice) -> Option<i32> {
-    if let Some(v) = coding::decode_varint_32_slice(input) {
+fn get_level(input: &mut Slice) -> Result<i32> {
+    coding::decode_varint_32_slice(input).and_then(|v| {
         if (v as i32) < config::NUM_LEVELS {
-            return Some(v as i32);
+            Ok(v as i32)
+        } else {
+            Err(Error::new(ErrorType::Corruption, "exceeded max level"))
         }
-    }
-    None
+    })
 }
 
 #[cfg(test)]

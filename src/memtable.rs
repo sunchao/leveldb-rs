@@ -162,7 +162,7 @@ impl<'a> Iterator for MemTableIterator<'a> {
 
     fn key(&self) -> Slice {
         let mut s = self.internal_iter.key().clone();
-        if let Some(key_slice) = coding::decode_length_prefixed_slice(&mut s) {
+        if let Ok(key_slice) = coding::decode_length_prefixed_slice(&mut s) {
             return key_slice;
         }
         Slice::new_empty()
@@ -170,8 +170,8 @@ impl<'a> Iterator for MemTableIterator<'a> {
 
     fn value(&self) -> Slice {
         let mut s = self.internal_iter.key().clone();
-        if let Some(_) = coding::decode_length_prefixed_slice(&mut s) {
-            if let Some(val_slice) = coding::decode_length_prefixed_slice(&mut s) {
+        if let Ok(_) = coding::decode_length_prefixed_slice(&mut s) {
+            if let Ok(val_slice) = coding::decode_length_prefixed_slice(&mut s) {
                 return val_slice;
             }
         }
@@ -183,8 +183,8 @@ impl<'a> Iterator for MemTableIterator<'a> {
 
 fn get_length_prefixed_slice(val: &[u8]) -> Slice {
     match coding::decode_varint_32_limit(val, 5) {
-        None => Slice::new_empty(),
-        Some((val_len, len)) => Slice::from(&val[len..(len + val_len as usize)]),
+        Err(_) => Slice::new_empty(),
+        Ok((val_len, len)) => Slice::from(&val[len..(len + val_len as usize)]),
     }
 }
 

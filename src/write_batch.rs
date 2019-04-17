@@ -103,21 +103,13 @@ impl WriteBatch {
             input.remove_prefix(1);
             match ValueType::try_from(tag).expect("invalid tag") {
                 ValueType::VALUE => {
-                    let key = coding::decode_length_prefixed_slice(&mut input);
-                    let value = coding::decode_length_prefixed_slice(&mut input);
-                    if key.is_some() && value.is_some() {
-                        handler.put(&key.unwrap(), &value.unwrap());
-                    } else {
-                        return LEVELDB_ERR!(Corruption, "bad WriteBatch Put");
-                    }
+                    let key = coding::decode_length_prefixed_slice(&mut input)?;
+                    let value = coding::decode_length_prefixed_slice(&mut input)?;
+                    handler.put(&key, &value);
                 },
                 ValueType::DELETION => {
-                    let key = coding::decode_length_prefixed_slice(&mut input);
-                    if key.is_some() {
-                        handler.delete(&key.unwrap());
-                    } else {
-                        return LEVELDB_ERR!(Corruption, "bad WriteBatch delete");
-                    }
+                    let key = coding::decode_length_prefixed_slice(&mut input)?;
+                    handler.delete(&key);
                 },
             }
         }
