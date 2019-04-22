@@ -208,7 +208,7 @@ mod tests {
                 self.returned_partial = true;
             }
             let result = Slice::from(&self.contents.data()[..n as usize]);
-            self.contents.remove_prefix(n as usize);
+            self.contents.skip(n as usize);
             Ok(result)
         }
 
@@ -217,7 +217,7 @@ mod tests {
                 self.contents.clear();
                 return LEVELDB_ERR!(NotFound, "in-memory file skipped past end");
             }
-            self.contents.remove_prefix(n as usize);
+            self.contents.skip(n as usize);
             Ok(())
         }
     }

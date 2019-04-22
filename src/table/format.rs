@@ -93,7 +93,7 @@ impl Footer {
 
         let metaindex_handle = BlockHandle::decode_from(src)?;
         let index_handle = BlockHandle::decode_from(src)?;
-        src.remove_prefix(Footer::ENCODED_LENGTH - original_size + src.size());
+        src.skip(Footer::ENCODED_LENGTH - original_size + src.size());
 
         let result = Footer {
             metaindex_handle,

@@ -64,8 +64,8 @@ impl Slice {
         self.size = 0;
     }
 
-    /// Drop the first `n` bytes from this slice
-    pub fn remove_prefix(&mut self, n: usize) {
+    /// Advance and drop the first `n` bytes from this slice.
+    pub fn skip(&mut self, n: usize) {
         assert!(n <= self.size());
         unsafe {
             self.data = self.data.offset(n as isize);

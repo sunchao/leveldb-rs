@@ -342,7 +342,7 @@ impl Reader {
                 }
             }
 
-            self.buffer.remove_prefix(HEADER_SIZE + (length as usize));
+            self.buffer.skip(HEADER_SIZE + (length as usize));
 
             // Skip physical record that started before initial_offset
             if (self.end_of_buffer_offset
