@@ -15,25 +15,4 @@
 // specific language governing permissions and limitations
 // under the License.
 
-#![feature(box_syntax)]
-#![feature(rustc_private)]
-#![feature(nll)]
-
-pub mod env;
-pub mod util;
-#[macro_use]
-pub mod result;
-pub mod comparator;
-pub mod config;
-pub mod dbformat;
-pub mod iterator;
-pub mod log_format;
-pub mod log_reader;
-pub mod log_writer;
-pub mod memtable;
-pub mod options;
-pub mod skiplist;
-pub mod slice;
-pub mod table;
-pub mod version_edit;
-pub mod write_batch;
+pub mod format;
