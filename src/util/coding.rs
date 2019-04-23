@@ -273,7 +273,7 @@ pub fn encode_length_prefixed_slice(dst: &mut Vec<u8>, v: &Slice) {
 /// Returns a u32 value if the decoding is successful, otherwise returns error.
 pub fn decode_varint_32_slice(input: &mut Slice) -> Result<u32> {
     let (result, len) = decode_varint_32(input.data())?;
-    input.remove_prefix(len);
+    input.skip(len);
     Ok(result)
 }
 
@@ -283,7 +283,7 @@ pub fn decode_varint_32_slice(input: &mut Slice) -> Result<u32> {
 /// Returns a u64 value if the decoding is successful, otherwise returns error.
 pub fn decode_varint_64_slice(input: &mut Slice) -> Result<u64> {
     let (result, len) = decode_varint_64(input.data())?;
-    input.remove_prefix(len);
+    input.skip(len);
     Ok(result)
 }
 
@@ -295,7 +295,7 @@ pub fn decode_length_prefixed_slice(input: &mut Slice) -> Result<Slice> {
     let len = decode_varint_32_slice(input)? as usize;
     if input.size() >= len {
         let result = Slice::new(input.raw_data(), len);
-        input.remove_prefix(len);
+        input.skip(len);
         return Ok(result);
     }
     Err(Error::new(

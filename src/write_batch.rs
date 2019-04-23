@@ -95,12 +95,12 @@ impl WriteBatch {
             return LEVELDB_ERR!(Corruption, "malformed WriteBatch (too small)");
         }
 
-        input.remove_prefix(HEADER_SIZE);
+        input.skip(HEADER_SIZE);
         let mut found = 0;
         while !input.empty() {
             found += 1;
             let tag: u8 = input[0];
-            input.remove_prefix(1);
+            input.skip(1);
             match ValueType::try_from(tag).expect("invalid tag") {
                 ValueType::VALUE => {
                     let key = coding::decode_length_prefixed_slice(&mut input)?;
