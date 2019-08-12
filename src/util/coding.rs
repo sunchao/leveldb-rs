@@ -258,12 +258,12 @@ pub fn varint_length(mut v: u64) -> usize {
 /// to `dst` .
 pub fn encode_length_prefixed_slice(dst: &mut Vec<u8>, v: &Slice) {
     let len = dst.len();
-    let encoded_len = varint_length(v.size() as u64);
+    let encoded_len = varint_length(v.len() as u64);
     unsafe {
         dst.reserve(encoded_len);
         dst.set_len(len + encoded_len);
     }
-    encode_varint_32(&mut dst[len..], v.size() as u32);
+    encode_varint_32(&mut dst[len..], v.len() as u32);
     dst.extend_from_slice(v.data());
 }
 
@@ -293,7 +293,7 @@ pub fn decode_varint_64_slice(input: &mut Slice) -> Result<u64> {
 /// Returns a slice which contains the decoded value, or error if the input is malformed.
 pub fn decode_length_prefixed_slice(input: &mut Slice) -> Result<Slice> {
     let len = decode_varint_32_slice(input)? as usize;
-    if input.size() >= len {
+    if input.len() >= len {
         let result = Slice::new(input.raw_data(), len);
         input.skip(len);
         return Ok(result);
@@ -495,7 +495,7 @@ mod tests {
         let mut s = Slice::from(&v[..]);
         let v = super::decode_varint_32_slice(&mut s).expect("shouldn't be None");
         assert_eq!(v, 1000);
-        assert_eq!(s.size(), 4 - len);
+        assert_eq!(s.len(), 4 - len);
     }
 
     #[test]
@@ -506,7 +506,7 @@ mod tests {
         let mut s = Slice::from(&v[..]);
         let v = super::decode_varint_64_slice(&mut s).expect("shouldn't be None");
         assert_eq!(v, c);
-        assert_eq!(s.size(), 10 - len);
+        assert_eq!(s.len(), 10 - len);
     }
 
     #[test]
@@ -525,6 +525,6 @@ mod tests {
         v = decode_length_prefixed_slice(&mut input).expect("shouldn't be None");
         assert_eq!(v.as_str(), "world");
 
-        assert_eq!(input.size(), 0);
+        assert_eq!(input.len(), 0);
     }
 }

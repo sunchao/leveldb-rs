@@ -84,7 +84,7 @@ pub struct LookupKey {
 
 impl LookupKey {
     pub fn new(user_key: &Slice, s: SequenceNumber) -> Self {
-        let size = user_key.size();
+        let size = user_key.len();
         let needed = size + 13; // a conservative estimate
         let mut data: Box<[u8]> = if needed <= 200 {
             box [0; 200]
@@ -157,8 +157,8 @@ impl Comparator<Slice> for InternalKeyComparator {
             .compare(&extract_user_key(a), &extract_user_key(b));
         match r {
             Ordering::Equal => {
-                let anum = coding::decode_fixed_64(&a.data()[a.size() - 8..]);
-                let bnum = coding::decode_fixed_64(&b.data()[b.size() - 8..]);
+                let anum = coding::decode_fixed_64(&a.data()[a.len() - 8..]);
+                let bnum = coding::decode_fixed_64(&b.data()[b.len() - 8..]);
                 if anum > bnum {
                     Ordering::Less
                 } else {
@@ -237,8 +237,8 @@ fn append_internal_key(result: &mut Vec<u8>, key: &ParsedInternalKey) {
 }
 
 fn extract_user_key(internal_key: &Slice) -> Slice {
-    assert!(internal_key.size() >= 8);
-    Slice::new(internal_key.raw_data(), internal_key.size() - 8)
+    assert!(internal_key.len() >= 8);
+    Slice::new(internal_key.raw_data(), internal_key.len() - 8)
 }
 
 pub struct ParsedInternalKey {
@@ -256,7 +256,7 @@ impl ParsedInternalKey {
         }
     }
 
-    pub fn encoding_length(&self) -> usize { self.user_key.size() + 8 }
+    pub fn encoding_length(&self) -> usize { self.user_key.len() + 8 }
 }
 
 impl Debug for ParsedInternalKey {
@@ -277,7 +277,7 @@ impl<'a> TryFrom<&'a Slice> for ParsedInternalKey {
     /// Attempt to parse an internal key from `internal_key`. On success, return `Some`
     /// with the parsed data. Otherwise, return `None`.
     fn try_from(s: &Slice) -> Result<ParsedInternalKey> {
-        let n = s.size();
+        let n = s.len();
         if n < 8 {
             return LEVELDB_ERR!(InvalidArgument, "Invalid Slice size");
         }
@@ -326,13 +326,13 @@ mod tests {
         let short_key = Slice::from("hello");
         let key = LookupKey::new(&short_key, 0);
         let mut v = [0; 4];
-        let len = coding::encode_varint_32(&mut v, short_key.size() as u32 + 8);
+        let len = coding::encode_varint_32(&mut v, short_key.len() as u32 + 8);
         assert_eq!(len, key.kstart);
         assert_eq!(
             short_key,
-            Slice::from(&key.data[len..len + short_key.size()])
+            Slice::from(&key.data[len..len + short_key.len()])
         );
-        assert_eq!(len + short_key.size() + 8, key.size);
+        assert_eq!(len + short_key.len() + 8, key.size);
     }
 
     #[test]

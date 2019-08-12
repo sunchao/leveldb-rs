@@ -91,7 +91,7 @@ impl WriteBatch {
 
     pub fn iterate(&self, handler: &mut Box<Handler>) -> Result<()> {
         let mut input: Slice = Slice::from(&self.rep[..]);
-        if input.size() < HEADER_SIZE {
+        if input.len() < HEADER_SIZE {
             return LEVELDB_ERR!(Corruption, "malformed WriteBatch (too small)");
         }
 

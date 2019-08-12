@@ -42,7 +42,7 @@ impl Slice {
 
     /// Return the length (in bytes) of the referenced data
     #[inline]
-    pub fn size(&self) -> usize { self.size }
+    pub fn len(&self) -> usize { self.size }
 
     /// Return the raw pointer to the internal data
     #[inline]
@@ -55,7 +55,7 @@ impl Slice {
 
     /// Return true iff the length of the referenced data is zero
     #[inline]
-    pub fn empty(&self) -> bool { self.size() == 0 }
+    pub fn empty(&self) -> bool { self.len() == 0 }
 
     /// Change this slice to refer to an empty array
     #[inline]
@@ -66,7 +66,7 @@ impl Slice {
 
     /// Advance and drop the first `n` bytes from this slice.
     pub fn skip(&mut self, n: usize) {
-        assert!(n <= self.size());
+        assert!(n <= self.len());
         unsafe {
             self.data = self.data.offset(n as isize);
         }
@@ -75,9 +75,7 @@ impl Slice {
 
     /// Return true iff `x` is a prefix of `self`
     pub fn starts_with(&self, x: &Slice) -> bool {
-        unsafe {
-            self.size() >= x.size() && bit::memcmp(self.data, x.data, x.size()) == 0
-        }
+        unsafe { self.len() >= x.len() && bit::memcmp(self.data, x.data, x.len()) == 0 }
     }
 
     /// Returns a string from the slice data. Copying the contents.
@@ -94,10 +92,10 @@ impl Slice {
     ///   `Ordering::Greater` iff `self` > `b`
     #[inline]
     pub fn compare(&self, b: &Slice) -> Ordering {
-        let min_len = if self.size() < b.size() {
-            self.size()
+        let min_len = if self.len() < b.len() {
+            self.len()
         } else {
-            b.size()
+            b.len()
         };
         let r = unsafe { bit::memcmp(self.data, b.data, min_len) };
         match r {
@@ -114,7 +112,7 @@ impl Index<usize> for Slice {
     type Output = u8;
 
     /// Return the ith byte in the referenced data
-    /// REQUIRES: index < self.size()
+    /// REQUIRES: index < self.len()
     fn index(&self, index: usize) -> &u8 { unsafe { &*self.data.offset(index as isize) } }
 }
 

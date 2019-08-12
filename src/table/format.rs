@@ -78,7 +78,7 @@ impl Footer {
     }
 
     pub fn decode_from(src: &mut Slice) -> Result<Footer> {
-        let original_size = src.size();
+        let original_size = src.len();
 
         let magic_data = &src.data()[Footer::ENCODED_LENGTH - 8..];
         let magic_lo: u32 = coding::decode_fixed_32(&magic_data);
@@ -93,7 +93,7 @@ impl Footer {
 
         let metaindex_handle = BlockHandle::decode_from(src)?;
         let index_handle = BlockHandle::decode_from(src)?;
-        src.skip(Footer::ENCODED_LENGTH - original_size + src.size());
+        src.skip(Footer::ENCODED_LENGTH - original_size + src.len());
 
         let result = Footer {
             metaindex_handle,

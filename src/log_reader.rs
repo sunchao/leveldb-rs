@@ -101,7 +101,7 @@ impl Reader {
     fn report_drop(&mut self, bytes: u64, reason: Result<()>) {
         if let Some(ref mut reporter) = self.reporter {
             if self.end_of_buffer_offset
-                >= self.buffer.size() as u64 + bytes + self.initial_offset
+                >= self.buffer.len() as u64 + bytes + self.initial_offset
             {
                 reporter.borrow_mut().corruption(bytes as usize, reason);
             }
@@ -131,7 +131,7 @@ impl Reader {
         loop {
             let (record_type, record_result) = self.read_physical_record();
             let fragment_size: u64 = if record_result.is_some() {
-                record_result.as_ref().unwrap().size() as u64
+                record_result.as_ref().unwrap().len() as u64
             } else {
                 0
             };
@@ -141,7 +141,7 @@ impl Reader {
             // these are removed from the `buffer`.
             // Also note this could be negative so using `i64` here.
             let physical_record_offset: i64 = self.end_of_buffer_offset as i64
-                - self.buffer.size() as i64
+                - self.buffer.len() as i64
                 - HEADER_SIZE as i64
                 - fragment_size as i64;
 
@@ -215,7 +215,7 @@ impl Reader {
                         RecordType::MIDDLE => {
                             if !in_fragmented_record {
                                 self.report_corruption(
-                                    fragment.size() as u64,
+                                    fragment.len() as u64,
                                     "missing start of fragmented record(1)",
                                 )
                             } else {
@@ -226,7 +226,7 @@ impl Reader {
                         RecordType::LAST => {
                             if !in_fragmented_record {
                                 self.report_corruption(
-                                    fragment.size() as u64,
+                                    fragment.len() as u64,
                                     "missing start of fragmented record(2)",
                                 );
                             } else {
@@ -243,7 +243,7 @@ impl Reader {
                             // TODO: include the type in error message ('static str makes
                             // it tricky)
                             self.report_corruption(
-                                (fragment.size() + scratch_size) as u64,
+                                (fragment.len() + scratch_size) as u64,
                                 "unexpected record type",
                             );
                             in_fragmented_record = false;
@@ -254,7 +254,7 @@ impl Reader {
                     // TODO: include the type in error message ('static str makes it
                     // tricky)
                     self.report_corruption(
-                        (fragment.size() + scratch_size) as u64,
+                        (fragment.len() + scratch_size) as u64,
                         "unknown record type",
                     );
                     in_fragmented_record = false;
@@ -270,7 +270,7 @@ impl Reader {
     /// (e.g., NOT `EOF` or `BAD_RECORD`)
     fn read_physical_record(&mut self) -> (i32, Option<Slice>) {
         loop {
-            if self.buffer.size() < HEADER_SIZE {
+            if self.buffer.len() < HEADER_SIZE {
                 if !self.eof {
                     // Last read was a full read, so this is a trailer to skip
                     self.buffer.clear();
@@ -284,9 +284,9 @@ impl Reader {
                         return (EOF, None);
                     } else {
                         let buf = result.unwrap();
-                        self.end_of_buffer_offset += buf.size() as u64;
+                        self.end_of_buffer_offset += buf.len() as u64;
                         self.buffer = buf;
-                        if self.buffer.size() < BLOCK_SIZE as usize {
+                        if self.buffer.len() < BLOCK_SIZE as usize {
                             self.eof = true
                         }
                     }
@@ -309,8 +309,8 @@ impl Reader {
             let tp = header[6] as i32;
             let length = (a as u32 | ((b as u32) << 8)) as usize;
 
-            if HEADER_SIZE + length > self.buffer.size() {
-                let drop_size = self.buffer.size() as u64;
+            if HEADER_SIZE + length > self.buffer.len() {
+                let drop_size = self.buffer.len() as u64;
                 self.buffer.clear();
                 if !self.eof {
                     self.report_corruption(drop_size, "bad record length");
@@ -335,7 +335,7 @@ impl Reader {
                 let expected_crc = crc32c::unmask(coding::decode_fixed_32(header));
                 let actual_crc = crc32c::value(&header[6..(7 + length as usize)]);
                 if expected_crc != actual_crc {
-                    let drop_size = self.buffer.size() as u64;
+                    let drop_size = self.buffer.len() as u64;
                     self.buffer.clear();
                     self.report_corruption(drop_size, "checksum mismatch");
                     return (BAD_RECORD, None);
@@ -346,7 +346,7 @@ impl Reader {
 
             // Skip physical record that started before initial_offset
             if (self.end_of_buffer_offset
-                - self.buffer.size() as u64
+                - self.buffer.len() as u64
                 - HEADER_SIZE as u64
                 - length as u64)
                 < self.initial_offset

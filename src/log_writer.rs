@@ -61,7 +61,7 @@ impl Writer {
 
     pub fn add_record(&mut self, slice: &Slice) -> Result<()> {
         let mut data: &[u8] = slice.data();
-        let mut left = slice.size();
+        let mut left = slice.len();
 
         let mut begin = true;
         loop {
@@ -203,8 +203,8 @@ mod tests {
                 return LEVELDB_ERR!(Corruption, "read error");
             }
 
-            if (self.contents.size() as u64) < n {
-                n = self.contents.size() as u64;
+            if (self.contents.len() as u64) < n {
+                n = self.contents.len() as u64;
                 self.returned_partial = true;
             }
             let result = Slice::from(&self.contents.data()[..n as usize]);
@@ -213,7 +213,7 @@ mod tests {
         }
 
         fn skip(&mut self, n: u64) -> Result<()> {
-            if n > self.contents.size() as u64 {
+            if n > self.contents.len() as u64 {
                 self.contents.clear();
                 return LEVELDB_ERR!(NotFound, "in-memory file skipped past end");
             }
@@ -412,7 +412,7 @@ mod tests {
                     .expect("read_record() should be OK");
                 assert_eq!(
                     INITIAL_OFFSET_RECORD_SIZES[expected_record_offset],
-                    record.size()
+                    record.len()
                 );
                 assert_eq!(
                     INITIAL_OFFSET_LAST_RECORD_OFFSETS[expected_record_offset],
@@ -836,5 +836,4 @@ mod tests {
         let mut test = LogTest::new();
         test.check_offset_past_end_returns_no_records(5);
     }
-
 }

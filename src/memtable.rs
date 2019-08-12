@@ -74,12 +74,12 @@ impl MemTable {
     /// if `val_ty` is `ValueType::DELETION`.
     pub fn add(&self, seq: SequenceNumber, val_ty: ValueType, key: &Slice, val: &Slice) {
         // format of an entry is concatenation of:
-        //  key_size: varint32 of internal_key.size()
-        //  key bytes: char[internal_key.size()]
-        //  value_size: varint32 of value.size()
-        //  value bytes: char[value.size()]
-        let key_size = key.size();
-        let val_size = val.size();
+        //  key_size: varint32 of internal_key.len()
+        //  key bytes: char[internal_key.len()]
+        //  value_size: varint32 of value.len()
+        //  value bytes: char[value.len()]
+        let key_size = key.len();
+        let val_size = val.len();
         let internal_key_size = key_size + 8;
         let encoded_len = coding::varint_length(internal_key_size as u64)
             + internal_key_size
@@ -190,8 +190,8 @@ fn get_length_prefixed_slice(val: &[u8]) -> Slice {
 
 fn get_string_from_slice(slice: &Slice) -> String {
     unsafe {
-        let mut v: Vec<u8> = Vec::with_capacity(slice.size());
+        let mut v: Vec<u8> = Vec::with_capacity(slice.len());
         bit::memcpy(&mut v, slice.data());
-        String::from_raw_parts(v.as_mut_ptr(), slice.size(), slice.size())
+        String::from_raw_parts(v.as_mut_ptr(), slice.len(), slice.len())
     }
 }
